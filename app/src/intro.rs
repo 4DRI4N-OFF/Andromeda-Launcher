@@ -200,3 +200,15 @@ mod tests {
         assert!(FRAMES.iter().all(|f| f.starts_with(b"\x89PNG\r\n\x1a\n")));
     }
 }
+
+#[cfg(test)]
+mod decode_tests {
+    #[test]
+    fn every_frame_decodes_with_original_aspect_ratio() {
+        for frame in super::FRAMES {
+            let image =
+                slint::Image::load_from_data(frame, Some("png")).expect("valid intro image");
+            assert_eq!((image.size().width, image.size().height), (960, 540));
+        }
+    }
+}
