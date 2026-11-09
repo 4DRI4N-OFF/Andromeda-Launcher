@@ -36,7 +36,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.set_dark_mode(s.dark_mode);
     let timer = Rc::new(slint::Timer::default());
     if intro::should_play(s.reduce_animations) {
-        match slint::Image::load_from_data(intro::FRAMES[0], Some("png")) {
+        match intro::decode(intro::FRAMES[0]) {
             Ok(image) => {
                 ui.set_intro_frame(image);
                 ui.set_intro_visible(true);
@@ -61,7 +61,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                             return;
                         }
-                        match slint::Image::load_from_data(intro::FRAMES[frame], Some("png")) {
+                        match intro::decode(intro::FRAMES[frame]) {
                             Ok(image) => ui.set_intro_frame(image),
                             Err(e) => {
                                 tracing::warn!("Intro frame failed: {e}");

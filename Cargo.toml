@@ -5,3 +5,9 @@ members = ["core", "app"]
 [workspace.package]
 edition = "2021"
 version = "0.0.1"
+
+[profile.dev.package.qoi]
+opt-level = 3
+
+[profile.dev.package.andromeda-app]
+opt-level = 1

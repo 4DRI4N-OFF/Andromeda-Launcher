@@ -1,7 +1,23 @@
-# Original-pose logo intro
+# Logo intro
 
-A six-second 30 fps splash uses pre-rendered frames from the owner-supplied Blockbench logo. Entry/exit and the small landing bounce use only native translation keyframes; the original geometry, pivots, rotations and textures are unchanged. The hold returns to the original pose. No PNG hold plate is used. Renderer antialiasing differs slightly from the reference PNG.
+The approved logo intro is a six-second, 30 fps Blockbench render. All 181 frames are embedded as lossless QOI at 960 x 540. The UI uses contain fit to preserve the original aspect ratio.
 
-The UI uses contain fit, never stretching the asset. The intro can be clicked to skip. When the saved Reduce animations setting is enabled, the intro is skipped entirely and no frame timer starts. A frame-decode error opens the launcher instead of blocking startup. Frame timing uses elapsed time so slow rendering does not extend the six-second intro.
+- Per-letter damped jelly arrival, followed by an upward ANDROMEDA push.
+- LAUNCHER enters at 1.25 seconds, lands at 1.85 seconds and settles by 2.63 seconds.
+- Ornaments spin from 1.66 to 2.18 seconds, with side clearance while the text rebounds.
+- Original logo pose held from 3.0 to 4.7 seconds, then the exit.
+- Original Blockbench cubes, pivots and base transforms are preserved in the editable model.
 
-The editable Blockbench copy and preview video are kept separately on the owner's PC; the repository contains only the rendered splash frames. Visual/interaction testing of the Slint window on the owner's desktop is pending while the PC is in active use. Source frame imagery has been inspected, but this is not proof of in-app playback speed or click behavior.
+The saved **Reduce animations** setting skips the entire intro. Clicking the intro skips playback. A decode error also opens the launcher instead of blocking startup.
+
+QOI decoding writes directly into Slint's RGBA pixel buffer. The development profile optimizes the decoder and application so debug playback does not use the slow unoptimized PNG path. Playback uses elapsed time rather than counting timer callbacks, so delays do not extend the intro.
+
+## Validation
+
+Local Windows checks for this revision: fmt, clippy with warnings denied, all 12 tests and workspace build passed. All 181 embedded images decode at 960 x 540. Decode benchmark: median 19.20 ms, p95 19.41 ms, maximum 19.62 ms. This measures decoding, not full presentation time or display smoothness.
+
+The approved source MP4 was reviewed across all 181 encoded frames, including consecutive enlarged crops during the rebound and ornament overlap. The hold matches the original-pose reference.
+
+Interactive Windows playback, click-to-skip and setting persistence remain pending a safe idle-PC check. These are not established by the decode benchmark. No desktop interaction or capture is allowed while the owner uses the PC.
+
+CI is manual-only. No paid workflow or release was run.
