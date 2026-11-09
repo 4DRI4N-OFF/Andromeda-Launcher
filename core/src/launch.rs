@@ -134,6 +134,17 @@ fn extract_native(jar: &Path, dest: &Path) -> Result<()> {
 
 /// Prepares only the downloaded, tested Windows x64 release. No downloads occur.
 pub fn prepare(root: &Path, version: &str, name: &str, memory_mb: u32) -> Result<LaunchPlan> {
+    prepare_in_game_dir(root, version, name, memory_mb, &root.join("game"))
+}
+
+/// Prepare an isolated, caller-selected game directory with shared verified downloads.
+pub fn prepare_in_game_dir(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+) -> Result<LaunchPlan> {
     if version != VERSION {
         return Err("Phase 2 currently supports installed vanilla 1.21.11 only".into());
     }
@@ -167,7 +178,7 @@ pub fn prepare(root: &Path, version: &str, name: &str, memory_mb: u32) -> Result
         &v["downloads"]["client"],
         path(&root, &format!("versions/{version}/{version}.jar"))?,
     )?;
-    let game_dir = root.join("game");
+    let game_dir = std::path::absolute(game)?;
     fs::create_dir_all(&game_dir)?;
     let natives = root.join("natives").join(version);
     fs::create_dir_all(&natives)?;
@@ -262,7 +273,7 @@ pub fn prepare(root: &Path, version: &str, name: &str, memory_mb: u32) -> Result
 
 pub struct RunningGame {
     child: Child,
-    _lock: fs::File,
+    _lock: crate::instances::GameLock,
 }
 impl RunningGame {
     pub fn id(&self) -> u32 {
@@ -278,16 +289,7 @@ impl LaunchPlan {
         if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {
             return Err("Offline launch currently requires Windows x64".into());
         }
-        let mut options = fs::OpenOptions::new();
-        options.read(true).write(true).create(true).truncate(false);
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::fs::OpenOptionsExt;
-            options.share_mode(0);
-        }
-        let lock = options
-            .open(self.game_dir.join(".andromeda-running.lock"))
-            .map_err(|e| format!("This game folder is already in use, or cannot be locked: {e}"))?;
+        let lock = crate::instances::lock_game(&self.game_dir)?;
         let logs = self.game_dir.join("launcher-logs");
         fs::create_dir_all(&logs)?;
         let stdout = fs::File::create(logs.join("latest-stdout.log"))?;

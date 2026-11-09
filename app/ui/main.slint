@@ -1,13 +1,20 @@
-import { Switch, LineEdit, Button } from "std-widgets.slint";
+import { Switch, LineEdit, Button, ComboBox } from "std-widgets.slint";
 
 export component MainWindow inherits Window {
     title: @tr("Andromeda Launcher");
     preferred-width: 960px;
-    preferred-height: 600px;
+    preferred-height: 760px;
     in-out property <bool> reduce-animations;
     in-out property <bool> dark-mode: true;
     in-out property <bool> intro-visible: false;
     in property <image> intro-frame;
+    in property <[string]> instance-names: ["Default profile (phase 2)"];
+    in-out property <int> instance-index: 0;
+    in-out property <string> instance-name: "New instance";
+    in-out property <bool> trash-armed: false;
+    in-out property <bool> can-restore: false;
+    callback instance-selected(int);
+    callback manage-instance(string, string);
     callback settings-changed();
     callback launch-offline(string);
     in-out property <string> local-name: "Player";
@@ -36,6 +43,23 @@ export component MainWindow inherits Window {
                 text: @tr("Local profile - vanilla 1.21.11");
                 font-size: 18px;
                 color: root.dark-mode ? #e8ecff : #10142a;
+            }
+            ComboBox {
+                model: root.instance-names;
+                current-index <=> root.instance-index;
+                enabled: !root.launch-busy;
+                selected(value) => { root.instance-selected(root.instance-index); }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                LineEdit { text <=> root.instance-name; placeholder-text: @tr("Instance name"); enabled: !root.launch-busy; }
+                Button { text: @tr("Create"); enabled: !root.launch-busy; clicked => { root.manage-instance("create", root.instance-name); } }
+                Button { text: @tr("Duplicate"); enabled: !root.launch-busy && root.instance-index > 0; clicked => { root.manage-instance("duplicate", root.instance-name); } }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Button { text: root.trash-armed ? @tr("Confirm trash") : @tr("Move to trash"); enabled: !root.launch-busy && root.instance-index > 0; clicked => { root.manage-instance("trash", ""); } }
+                Button { text: @tr("Undo last trash"); enabled: !root.launch-busy && root.can-restore; clicked => { root.manage-instance("restore", ""); } }
             }
             LineEdit {
                 text <=> root.local-name;
