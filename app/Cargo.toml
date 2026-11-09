@@ -9,6 +9,7 @@ name = "andromeda"
 path = "src/main.rs"
 
 [dependencies]
+qoi = "0.4"
 andromeda-core = { path = "../core" }
 slint = "1"
 tracing = "0.1"
