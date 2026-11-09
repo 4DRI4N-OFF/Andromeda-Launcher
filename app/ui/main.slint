@@ -1,0 +1,39 @@
+import { Switch } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "Andromeda Launcher";
+    preferred-width: 960px;
+    preferred-height: 600px;
+    in-out property <bool> reduce-animations;
+    in-out property <bool> dark-mode: true;
+    callback settings-changed();
+
+    background: dark-mode ? #0b1020 : #f3f5fb;
+
+    VerticalLayout {
+        padding: 32px;
+        spacing: 16px;
+        Text {
+            text: "Andromeda";
+            font-size: 40px;
+            font-weight: 800;
+            color: dark-mode ? #e8ecff : #10142a;
+        }
+        Text {
+            text: "Fase 0: esqueleto";
+            font-size: 16px;
+            color: dark-mode ? #8d97c4 : #4a5280;
+        }
+        Rectangle { vertical-stretch: 1; }
+        Switch {
+            text: "Reducir animaciones";
+            checked <=> root.reduce-animations;
+            toggled => { root.settings-changed(); }
+        }
+        Switch {
+            text: "Modo oscuro";
+            checked <=> root.dark-mode;
+            toggled => { root.settings-changed(); }
+        }
+    }
+}
