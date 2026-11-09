@@ -1,6 +1,6 @@
 # Andromeda Launcher
 
-A Minecraft Java launcher written in Rust, with a testable core and native Slint UI. Private development project, currently at phase 2.
+A Minecraft Java launcher written in Rust, with a testable core and native Slint UI. Private development project, currently at phase 3.
 
 ## Current state
 
@@ -8,11 +8,12 @@ A Minecraft Java launcher written in Rust, with a testable core and native Slint
 - Approved animated logo intro, click to skip, fully skipped with Reduce animations.
 - Headless vanilla version list and verified downloader, including Java.
 - Play installed vanilla 1.21.11 offline with a local profile from the UI or CLI.
-- Windows x64 debug fmt, clippy, 18 tests and build pass.
+- Windows x64 debug fmt, clippy, 25 tests and build pass.
 - Real singleplayer world creation, saving and reopening verified on the development PC.
+- Isolated instances: create, deep duplicate, recoverable launcher trash and restore in UI/CLI.
 - No Microsoft sign-in, UI installer, loaders or mods yet.
 
-See [PHASE1.md](PHASE1.md), [INTRO.md](INTRO.md) and [PHASE2.md](PHASE2.md) for commands, validation and limits.
+See [PHASE1.md](PHASE1.md), [INTRO.md](INTRO.md) [PHASE2.md](PHASE2.md) and [PHASE3.md](PHASE3.md) for commands, validation and limits.
 
 ## Development
 
