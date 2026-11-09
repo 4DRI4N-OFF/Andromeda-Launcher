@@ -28,4 +28,4 @@ Downloader tests cover hash/size mismatch, unsafe manifest paths, Windows rules,
 
 No UI install button, native archive extraction, launch arguments/classpath, Microsoft login, game launch, loaders or mods. These come in later phases. The phase-0 Slint window still needs a safe interactive/visual test while the owner is away from the PC. Do not infer a working game launch from a successful download or Java version check.
 
-CI is manual-trigger-only to avoid unapproved usage charges on the private repository. The phase-1 PR is stacked on phase 0; merging remains the owner's decision.
+CI is manual-trigger-only to avoid unapproved usage charges on the private repository. Phases 0 and 1 are merged into main; PRs may be merged after review and passing local checks under the owner's grant.
