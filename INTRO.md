@@ -18,6 +18,8 @@ Local Windows checks for this revision: fmt, clippy with warnings denied, all 12
 
 The approved source MP4 was reviewed across all 181 encoded frames, including consecutive enlarged crops during the rebound and ornament overlap. The hold matches the original-pose reference.
 
-Interactive Windows playback, click-to-skip and setting persistence remain pending a safe idle-PC check. These are not established by the decode benchmark. No desktop interaction or capture is allowed while the owner uses the PC.
+Interactive Windows smoke test passed on 9 November 2026 while the owner was away: intro renders through entry, rebound, hold and exit; click-to-skip opens the launcher; enabling Reduce animations survives close/reopen and skips the intro; disabling it survives close/reopen and restores playback. Original settings were restored, and all test windows were closed.
+
+A full eight-second client-window capture was reviewed consecutively. No visual jumps, collisions or long freezes were observed. Capture sampling includes occasional duplicate/skipped animation frames; this is not a guarantee of locked 30 fps or a performance test on other PCs. Release-build performance, resizing and multiple display/DPI configurations were not tested.
 
 CI is manual-only. No paid workflow or release was run.
