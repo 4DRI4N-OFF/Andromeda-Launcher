@@ -1,0 +1,19 @@
+[package]
+name = "andromeda-app"
+version.workspace = true
+edition.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "andromeda"
+path = "src/main.rs"
+
+[dependencies]
+andromeda-core = { path = "../core" }
+slint = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+tracing-appender = "0.2"
+
+[build-dependencies]
+slint-build = "1"
