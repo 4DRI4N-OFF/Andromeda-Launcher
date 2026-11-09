@@ -25,7 +25,7 @@ fn main() -> Result<(), slint::PlatformError> {
         .with_writer(writer)
         .with_ansi(false)
         .init();
-    tracing::info!("Andromeda arranca");
+    tracing::info!("Andromeda starting");
 
     let settings_path = dir.join("settings.json");
     let s = Settings::load(&settings_path);
@@ -42,7 +42,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 dark_mode: ui.get_dark_mode(),
             };
             if let Err(e) = new.save(&settings_path) {
-                tracing::error!("no se pudo guardar ajustes: {e}");
+                tracing::error!("could not save settings: {e}");
             }
         }
     });
