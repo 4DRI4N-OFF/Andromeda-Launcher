@@ -29,7 +29,7 @@ fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
         .as_str()
         .ok_or_else(|| format!("Missing string: {key}").into())
 }
-fn path(root: &Path, relative: &str) -> Result<PathBuf> {
+pub(crate) fn path(root: &Path, relative: &str) -> Result<PathBuf> {
     if relative.is_empty()
         || relative.contains(['\\', ':'])
         || Path::new(relative)
@@ -56,7 +56,7 @@ fn item(v: &Value, path: PathBuf) -> Result<Item> {
         path,
     })
 }
-fn valid(p: &Path, hash: &str, size: u64) -> Result<bool> {
+pub(crate) fn valid(p: &Path, hash: &str, size: u64) -> Result<bool> {
     if !p.is_file() {
         return Ok(false);
     }
@@ -280,7 +280,7 @@ impl Downloader {
         Ok(receipt)
     }
 }
-fn allowed(lib: &Value) -> bool {
+pub(crate) fn allowed(lib: &Value) -> bool {
     let Some(rules) = lib["rules"].as_array() else {
         return true;
     };
