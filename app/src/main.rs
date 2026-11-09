@@ -89,5 +89,52 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
     });
+    let launch_weak = ui.as_weak();
+    let vanilla_dir = dir.join("vanilla");
+    ui.on_launch_offline(move |name| {
+        let Some(ui) = launch_weak.upgrade() else {
+            return;
+        };
+        if ui.get_launch_busy() {
+            return;
+        }
+        ui.set_launch_busy(true);
+        ui.set_launch_status("Preparing installed vanilla 1.21.11...".into());
+        let weak = launch_weak.clone();
+        let root = vanilla_dir.clone();
+        let name = name.to_string();
+        std::thread::spawn(move || {
+            let run = (|| -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                let plan = andromeda_core::launch::prepare(&root, "1.21.11", &name, 2048)?;
+                let mut game = plan.spawn()?;
+                tracing::info!(pid = game.id(), "Local-profile Minecraft started");
+                let _ = weak.upgrade_in_event_loop(|ui| {
+                    ui.set_launch_status(
+                        "Minecraft is running. Close the game to play again.".into(),
+                    );
+                });
+                let status = game.wait()?;
+                if !status.success() {
+                    return Err(format!(
+                        "Minecraft exited with {status}; see data/vanilla/game/launcher-logs"
+                    )
+                    .into());
+                }
+                Ok(())
+            })();
+            let status = match run {
+                Ok(()) => "Game closed. Ready to play offline again.".to_owned(),
+                Err(e) => {
+                    tracing::error!("Local-profile launch failed: {e}");
+                    format!("Could not play offline: {e}")
+                }
+            };
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                ui.set_launch_busy(false);
+                ui.set_launch_status(status.into());
+            });
+        });
+    });
+
     ui.run()
 }
