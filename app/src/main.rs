@@ -100,6 +100,57 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
     });
+    let session_path = dir.join("auth/session.dpapi");
+    if session_path.is_file() {
+        ui.set_account_status(
+            "A protected session is saved. It will be verified when you play with Microsoft."
+                .into(),
+        );
+    }
+    let auth_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let auth_weak = ui.as_weak();
+    let auth_path = session_path.clone();
+    let auth_cancel_action = auth_cancel.clone();
+    ui.on_account_action(move |action| {
+        let Some(ui) = auth_weak.upgrade() else { return; };
+        if action == "cancel" {
+            auth_cancel_action.store(true, std::sync::atomic::Ordering::Relaxed);
+            ui.set_account_status("Cancelling sign-in...".into());
+            return;
+        }
+        if ui.get_launch_busy() || ui.get_auth_busy() { return; }
+        if action == "signout" {
+            match andromeda_core::session_store::remove(&auth_path) {
+                Ok(()) => { ui.set_use_microsoft(false); ui.set_account_status("Local session removed. Microsoft consent is unchanged.".into()); }
+                Err(e) => ui.set_account_status(e.to_string().into()),
+            }
+            return;
+        }
+        if action != "signin" { return; }
+        auth_cancel_action.store(false, std::sync::atomic::Ordering::Relaxed);
+        ui.set_auth_busy(true);
+        ui.set_account_status("Requesting a code from Microsoft...".into());
+        let weak = auth_weak.clone(); let path = auth_path.clone(); let cancel = auth_cancel_action.clone();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<String, andromeda_core::auth::AuthError> {
+                let http = andromeda_core::auth::Http::new()?;
+                let code = andromeda_core::auth::begin(&http)?;
+                let instructions = format!("Open {} and enter {}. Expires in {} minutes. Check that the page names your Kimberlite app before approving.", code.verification_uri, code.user_code, code.expires_in / 60);
+                weak.upgrade_in_event_loop(move |ui| ui.set_account_status(instructions.into())).map_err(|_| andromeda_core::auth::AuthError::Cancelled)?;
+                let session = andromeda_core::auth::finish(&http, &code, &cancel)?;
+                if cancel.load(std::sync::atomic::Ordering::Relaxed) { return Err(andromeda_core::auth::AuthError::Cancelled); }
+                andromeda_core::session_store::save(&path, &session)?;
+                Ok(session.profile.name)
+            })();
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                ui.set_auth_busy(false);
+                match result {
+                    Ok(name) => { ui.set_use_microsoft(true); ui.set_account_status(format!("Signed in as {name}. Session protected for this Windows user.").into()); }
+                    Err(e) => ui.set_account_status(e.to_string().into()),
+                }
+            });
+        });
+    });
     let instance_root = dir.join("instances");
     let instances = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     match andromeda_core::instances::list(&instance_root) {
@@ -126,7 +177,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let manage_trash = last_trash.clone();
     ui.on_manage_instance(move |action, name| {
         let Some(ui) = manage_weak.upgrade() else { return; };
-        if ui.get_launch_busy() { return; }
+        if ui.get_launch_busy() || ui.get_auth_busy() { return; }
         let selected = ui.get_instance_index().checked_sub(1).and_then(|n| manage_instances.lock().ok()?.get(n as usize).cloned());
         if action == "trash" && !ui.get_trash_armed() {
             ui.set_trash_armed(true);
@@ -169,7 +220,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let Some(ui) = launch_weak.upgrade() else {
             return;
         };
-        if ui.get_launch_busy() {
+        if ui.get_launch_busy() || ui.get_auth_busy() {
             return;
         }
         let selected = ui
@@ -190,16 +241,27 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = launch_weak.clone();
         let root = vanilla_dir.clone();
         let name = name.to_string();
+        let use_microsoft = ui.get_use_microsoft();
+        let account_path = session_path.clone();
         std::thread::spawn(move || {
             let run = (|| -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-                let plan = match game_dir {
-                    Some(game) => andromeda_core::launch::prepare_in_game_dir(
-                        &root, "1.21.11", &name, memory, &game,
-                    )?,
-                    None => andromeda_core::launch::prepare(&root, "1.21.11", &name, memory)?,
+                let plan = if use_microsoft {
+                    let http = andromeda_core::auth::Http::new()?;
+                    let session = andromeda_core::session_store::refresh(&account_path, &http)?;
+                    let game = game_dir.unwrap_or_else(|| root.join("game"));
+                    andromeda_core::launch::prepare_authenticated(
+                        &root, "1.21.11", memory, &game, &session,
+                    )?
+                } else {
+                    match game_dir {
+                        Some(game) => andromeda_core::launch::prepare_in_game_dir(
+                            &root, "1.21.11", &name, memory, &game,
+                        )?,
+                        None => andromeda_core::launch::prepare(&root, "1.21.11", &name, memory)?,
+                    }
                 };
                 let mut game = plan.spawn()?;
-                tracing::info!(pid = game.id(), "Local-profile Minecraft started");
+                tracing::info!(pid = game.id(), "Minecraft started");
                 let _ = weak.upgrade_in_event_loop(|ui| {
                     ui.set_launch_status(
                         "Minecraft is running. Close the game to play again.".into(),
@@ -215,10 +277,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 Ok(())
             })();
             let status = match run {
-                Ok(()) => "Game closed. Ready to play offline again.".to_owned(),
+                Ok(()) => "Game closed. Ready to play again.".to_owned(),
                 Err(e) => {
-                    tracing::error!("Local-profile launch failed: {e}");
-                    format!("Could not play offline: {e}")
+                    tracing::error!("Minecraft launch failed: {e}");
+                    format!("Could not start Minecraft: {e}")
                 }
             };
             let _ = weak.upgrade_in_event_loop(move |ui| {
@@ -228,5 +290,7 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     });
 
-    ui.run()
+    let result = ui.run();
+    auth_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    result
 }
