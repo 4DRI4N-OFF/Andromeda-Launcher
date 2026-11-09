@@ -3,10 +3,14 @@
     windows_subsystem = "windows"
 )]
 
+mod intro;
 use andromeda_core::settings::Settings;
 use slint::ComponentHandle;
-use std::path::PathBuf;
-
+use std::{
+    path::PathBuf,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 slint::include_modules!();
 
 fn data_dir() -> PathBuf {
@@ -15,7 +19,6 @@ fn data_dir() -> PathBuf {
         .expect("workspace root")
         .join("data")
 }
-
 fn main() -> Result<(), slint::PlatformError> {
     let dir = data_dir();
     let _ = std::fs::create_dir_all(dir.join("logs"));
@@ -26,14 +29,54 @@ fn main() -> Result<(), slint::PlatformError> {
         .with_ansi(false)
         .init();
     tracing::info!("Andromeda starting");
-
     let settings_path = dir.join("settings.json");
     let s = Settings::load(&settings_path);
-
     let ui = MainWindow::new()?;
     ui.set_reduce_animations(s.reduce_animations);
     ui.set_dark_mode(s.dark_mode);
-
+    let timer = Rc::new(slint::Timer::default());
+    if intro::should_play(s.reduce_animations) {
+        match slint::Image::load_from_data(intro::FRAMES[0], Some("png")) {
+            Ok(image) => {
+                ui.set_intro_frame(image);
+                ui.set_intro_visible(true);
+                let weak = ui.as_weak();
+                let timer_weak = Rc::downgrade(&timer);
+                let start = Instant::now();
+                timer.start(
+                    slint::TimerMode::Repeated,
+                    Duration::from_millis(33),
+                    move || {
+                        let Some(ui) = weak.upgrade() else {
+                            if let Some(t) = timer_weak.upgrade() {
+                                t.stop();
+                            }
+                            return;
+                        };
+                        let frame = (start.elapsed().as_secs_f64() * 30.0) as usize;
+                        if !ui.get_intro_visible() || frame >= intro::FRAMES.len() {
+                            ui.set_intro_visible(false);
+                            if let Some(t) = timer_weak.upgrade() {
+                                t.stop();
+                            }
+                            return;
+                        }
+                        match slint::Image::load_from_data(intro::FRAMES[frame], Some("png")) {
+                            Ok(image) => ui.set_intro_frame(image),
+                            Err(e) => {
+                                tracing::warn!("Intro frame failed: {e}");
+                                ui.set_intro_visible(false);
+                                if let Some(t) = timer_weak.upgrade() {
+                                    t.stop();
+                                }
+                            }
+                        }
+                    },
+                );
+            }
+            Err(e) => tracing::warn!("Intro unavailable, opening launcher: {e}"),
+        }
+    }
     let weak = ui.as_weak();
     ui.on_settings_changed(move || {
         if let Some(ui) = weak.upgrade() {
@@ -46,6 +89,5 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
     });
-
     ui.run()
 }

@@ -6,34 +6,59 @@ export component MainWindow inherits Window {
     preferred-height: 600px;
     in-out property <bool> reduce-animations;
     in-out property <bool> dark-mode: true;
+    in-out property <bool> intro-visible: false;
+    in property <image> intro-frame;
     callback settings-changed();
 
     background: dark-mode ? #0b1020 : #f3f5fb;
 
-    VerticalLayout {
-        padding: 32px;
-        spacing: 16px;
-        Text {
-            text: @tr("Andromeda");
-            font-size: 40px;
-            font-weight: 800;
-            color: dark-mode ? #e8ecff : #10142a;
+    Rectangle {
+        visible: !root.intro-visible;
+        VerticalLayout {
+            padding: 32px;
+            spacing: 16px;
+            Text {
+                text: @tr("Andromeda");
+                font-size: 40px;
+                font-weight: 800;
+                color: root.dark-mode ? #e8ecff : #10142a;
+            }
+            Text {
+                text: @tr("Vanilla downloads available through the command-line tool");
+                font-size: 16px;
+                color: root.dark-mode ? #8d97c4 : #4a5280;
+            }
+            Rectangle { vertical-stretch: 1; }
+            Switch {
+                text: @tr("Reduce animations");
+                checked <=> root.reduce-animations;
+                toggled => { root.settings-changed(); }
+            }
+            Switch {
+                text: @tr("Dark mode");
+                checked <=> root.dark-mode;
+                toggled => { root.settings-changed(); }
+            }
+        }
+    }
+    Rectangle {
+        visible: root.intro-visible;
+        background: #10121d;
+        Image {
+            width: parent.width;
+            height: parent.height;
+            source: root.intro-frame;
+            image-fit: contain;
         }
         Text {
-            text: @tr("Phase 0: skeleton");
-            font-size: 16px;
-            color: dark-mode ? #8d97c4 : #4a5280;
+            x: 0px;
+            y: parent.height - 48px;
+            width: parent.width;
+            text: @tr("Click to skip intro");
+            horizontal-alignment: center;
+            color: #9da2b8;
+            font-size: 13px;
         }
-        Rectangle { vertical-stretch: 1; }
-        Switch {
-            text: @tr("Reduce animations");
-            checked <=> root.reduce-animations;
-            toggled => { root.settings-changed(); }
-        }
-        Switch {
-            text: @tr("Dark mode");
-            checked <=> root.dark-mode;
-            toggled => { root.settings-changed(); }
-        }
+        TouchArea { clicked => { root.intro-visible = false; } }
     }
 }
