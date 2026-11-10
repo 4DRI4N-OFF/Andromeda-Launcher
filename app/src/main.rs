@@ -26,7 +26,18 @@ fn refresh_instances(
     items: Vec<andromeda_core::instances::Instance>,
 ) {
     let mut labels: Vec<slint::SharedString> = vec!["Default profile (phase 2)".into()];
-    labels.extend(items.iter().map(|i| i.name.clone().into()));
+    labels.extend(items.iter().map(|i| {
+        format!(
+            "{} [{}]",
+            i.name,
+            if i.loader.is_some() {
+                "Fabric"
+            } else {
+                "Vanilla"
+            }
+        )
+        .into()
+    }));
     *shared.lock().expect("instance state") = items;
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(labels)));
     ui.set_instance_index(0);
@@ -246,6 +257,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let result = (|| -> Result<Vec<andromeda_core::instances::Instance>, Box<dyn std::error::Error + Send + Sync>> {
                 match action.as_str() {
                     "create" => { andromeda_core::instances::create(&root, &name, &local_name, 2048)?; }
+                    "createfabric" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Fabric { version: "0.20.1".into() }))?; }
                     "duplicate" => { let i = selected.ok_or("Select an instance, not the default profile")?; andromeda_core::instances::duplicate(&root, &i.id, &name)?; }
                     "trash" => { let i = selected.ok_or("The default profile cannot be trashed here")?; andromeda_core::instances::trash(&root, &i.id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = Some(i.id); }
                     "restore" => { let id = trash.lock().map_err(|_| "Instance lock unavailable")?.clone().ok_or("No instance to restore in this session")?; andromeda_core::instances::restore(&root, &id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = None; }
@@ -285,6 +297,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
         let game_dir = selected_game.and_then(Result::ok);
         let memory = selected.as_ref().map(|i| i.memory_mb).unwrap_or(2048);
+        let loader = selected.as_ref().and_then(|i| i.loader.clone());
         ui.set_launch_busy(true);
         ui.set_launch_status("Preparing installed vanilla 1.21.11...".into());
         let weak = launch_weak.clone();
@@ -294,20 +307,44 @@ fn main() -> Result<(), slint::PlatformError> {
         let account_path = session_path.clone();
         std::thread::spawn(move || {
             let run = (|| -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-                let plan = if use_microsoft {
+                let session = if use_microsoft {
                     let http = andromeda_core::auth::Http::new()?;
-                    let session = andromeda_core::session_store::refresh(&account_path, &http)?;
-                    let game = game_dir.unwrap_or_else(|| root.join("game"));
-                    andromeda_core::launch::prepare_authenticated(
-                        &root, "1.21.11", memory, &game, &session,
-                    )?
+                    Some(andromeda_core::session_store::refresh(
+                        &account_path,
+                        &http,
+                    )?)
                 } else {
-                    match game_dir {
-                        Some(game) => andromeda_core::launch::prepare_in_game_dir(
-                            &root, "1.21.11", &name, memory, &game,
-                        )?,
-                        None => andromeda_core::launch::prepare(&root, "1.21.11", &name, memory)?,
+                    None
+                };
+                let plan = match loader {
+                    Some(andromeda_core::instances::Loader::Fabric { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_fabric(
+                            &root,
+                            "1.21.11",
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
+                        )?
                     }
+                    None => match session {
+                        Some(session) => {
+                            let game = game_dir.unwrap_or_else(|| root.join("game"));
+                            andromeda_core::launch::prepare_authenticated(
+                                &root, "1.21.11", memory, &game, &session,
+                            )?
+                        }
+                        None => match game_dir {
+                            Some(game) => andromeda_core::launch::prepare_in_game_dir(
+                                &root, "1.21.11", &name, memory, &game,
+                            )?,
+                            None => {
+                                andromeda_core::launch::prepare(&root, "1.21.11", &name, memory)?
+                            }
+                        },
+                    },
                 };
                 let mut game = plan.spawn()?;
                 tracing::info!(pid = game.id(), "Minecraft started");

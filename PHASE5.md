@@ -34,3 +34,13 @@ The bounded headless installer is implemented. Redirects are disabled, metadata/
 On November 10, a live headless check installed and verified all 8 client libraries for Minecraft 1.21.11 / Fabric 0.20.1 in data/fabric-test-cache. A second run reused and reverified the same cache. No game, mod, account prompt or saved instance was opened or changed. 43 core tests and strict all-target Clippy pass.
 
 Launch overlay integration, per-instance loader selection and real loaded-mod proof remain unfinished. The headless example is: cargo run -p andromeda-core --example fabric_check -- CACHE_DIR GAME_VERSION LOADER_VERSION.
+
+## Launch/instance checkpoint (not visually validated)
+
+Fabric launch-plan integration now prepends verified Fabric libraries to the inherited vanilla classpath, uses the Fabric client entrypoint and includes its JVM/game overlay arguments. The headless plan check passed against the installed vanilla base without starting Java or reading a Microsoft session.
+
+Instances have an optional loader field; old metadata defaults to vanilla. Fresh Fabric instances can be created without converting or touching existing worlds. The UI has an explicit Create Fabric 0.20.1 action and labels Fabric/Vanilla instances. That initial version is explicitly named, not advertised as permanently latest. Both Microsoft and explicit offline paths use the selected instance loader. 49 workspace tests (46 core + 3 app) and strict all-target Clippy pass.
+
+A separate Andromeda-Phase5-Fabric-Test/andromeda-fabric.exe was built, preserving the last phase-3 executable. It has NOT been opened yet. UI pixels, creating/selecting a fresh Fabric instance and a real loaded-mod game test are still unverified. No completion claim and no merge permission for phase 5. The UI/launch checkpoint needs a safe PC testing window before it counts as ready.
+
+Earlier bullets describing only metadata groundwork or unfinished integration are historical checkpoints; this section is the current state. Per-instance loader storage and launch integration are implemented but not yet exercised by a real game. Quilt, Forge and NeoForge are still unstarted.

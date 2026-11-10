@@ -39,12 +39,12 @@ export component MainWindow inherits Window {
                 color: root.dark-mode ? #e8ecff : #10142a;
             }
             Text {
-                text: @tr("Play installed vanilla Minecraft with a local profile");
+                text: @tr("Play Minecraft with an offline or Microsoft profile");
                 font-size: 16px;
                 color: root.dark-mode ? #8d97c4 : #4a5280;
             }
             Text {
-                text: @tr("Local profile - vanilla 1.21.11");
+                text: @tr("Minecraft 1.21.11 - Vanilla or Fabric");
                 font-size: 18px;
                 color: root.dark-mode ? #e8ecff : #10142a;
             }
@@ -58,6 +58,7 @@ export component MainWindow inherits Window {
                 spacing: 8px;
                 LineEdit { text <=> root.instance-name; placeholder-text: @tr("Instance name"); enabled: !root.launch-busy && !root.auth-busy; }
                 Button { text: @tr("Create"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.manage-instance("create", root.instance-name); } }
+                Button { text: @tr("Create Fabric 0.20.1"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.manage-instance("createfabric", root.instance-name); } }
                 Button { text: @tr("Duplicate"); enabled: !root.launch-busy && !root.auth-busy && root.instance-index > 0; clicked => { root.manage-instance("duplicate", root.instance-name); } }
             }
             HorizontalLayout {

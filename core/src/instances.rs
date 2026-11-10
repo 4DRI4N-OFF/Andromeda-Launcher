@@ -8,6 +8,21 @@ use std::{
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 const SCHEMA: u32 = 1;
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Loader {
+    Fabric { version: String },
+}
+impl Loader {
+    fn validate(&self) -> Result<()> {
+        match self {
+            Self::Fabric { version } => {
+                crate::fabric::maven_path(&format!("net.fabricmc:fabric-loader:{version}"))?;
+            }
+        }
+        Ok(())
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Instance {
     pub schema: u32,
@@ -16,6 +31,8 @@ pub struct Instance {
     pub version: String,
     pub local_name: String,
     pub memory_mb: u32,
+    #[serde(default)]
+    pub loader: Option<Loader>,
 }
 fn validate_id(id: &str) -> Result<()> {
     if id.is_empty()
@@ -73,6 +90,9 @@ fn read_instance(dir: &Path, id: &str) -> Result<Instance> {
         return Err("Unsupported or mismatched instance metadata".into());
     }
     validate_name(&instance.name)?;
+    if let Some(loader) = &instance.loader {
+        loader.validate()?;
+    }
     crate::launch::offline_uuid(&instance.local_name)?;
     if !(512..=8192).contains(&instance.memory_mb) {
         return Err("Invalid instance memory".into());
@@ -133,6 +153,19 @@ fn publish(root: &Path, instance: &Instance, source: Option<&Path>) -> Result<()
     Ok(())
 }
 pub fn create(root: &Path, name: &str, local_name: &str, memory_mb: u32) -> Result<Instance> {
+    create_with_loader(root, name, local_name, memory_mb, None)
+}
+/// Creates a fresh isolated instance. Never converts an existing world/instance.
+pub fn create_with_loader(
+    root: &Path,
+    name: &str,
+    local_name: &str,
+    memory_mb: u32,
+    loader: Option<Loader>,
+) -> Result<Instance> {
+    if let Some(loader) = &loader {
+        loader.validate()?;
+    }
     validate_name(name)?;
     crate::launch::offline_uuid(local_name)?;
     if !(512..=8192).contains(&memory_mb) {
@@ -146,6 +179,7 @@ pub fn create(root: &Path, name: &str, local_name: &str, memory_mb: u32) -> Resu
         version: "1.21.11".into(),
         local_name: local_name.into(),
         memory_mb,
+        loader,
     };
     publish(root, &instance, None)?;
     Ok(instance)
@@ -369,5 +403,34 @@ mod tests {
             b"existing"
         );
         fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod loader_tests {
+    use super::*;
+    #[test]
+    fn old_instance_json_defaults_to_vanilla() {
+        let i: Instance = serde_json::from_str(r#"{"schema":1,"id":"i-test","name":"Old","version":"1.21.11","local_name":"Player","memory_mb":2048}"#).unwrap();
+        assert!(i.loader.is_none());
+    }
+    #[test]
+    fn fabric_selection_roundtrips() {
+        let loader = Loader::Fabric {
+            version: "0.20.1".into(),
+        };
+        loader.validate().unwrap();
+        assert_eq!(
+            serde_json::from_str::<Loader>(&serde_json::to_string(&loader).unwrap()).unwrap(),
+            loader
+        );
+    }
+    #[test]
+    fn unsafe_loader_version_is_rejected() {
+        assert!(Loader::Fabric {
+            version: "../x".into()
+        }
+        .validate()
+        .is_err());
     }
 }
