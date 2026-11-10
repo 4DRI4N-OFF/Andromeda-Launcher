@@ -40,20 +40,31 @@ Use a separate branch and pull request for every change. Keep this repository pr
 Not an official Minecraft product. Not affiliated with Mojang or Microsoft. Downloading game files does not grant a Minecraft license. Project licensing is not yet decided.
 ## Interface
 
-`app/ui/main.slint` is organised around what the launcher actually does:
+`app/ui/main.slint` has two screens, and the Play screen only shows what is needed to
+start the game:
 
-- **Profiles** (left): one clickable row per instance, then the new-instance name, Create/Duplicate, the four loader shortcuts and the recoverable trash pair.
-- **Play** (right): the selected profile, a full-width Play button and the live launch status.
-- **Microsoft account**: sign-in, cancel, local sign-out and the "use for Play" switch.
-- **Offline name**: the local player name, kept next to its singleplayer-only note.
-- **Footer**: reduce animations, dark mode.
+- **Play** (default): the profile list on the left, and on the right the selected profile,
+  its Minecraft version, one Play button and the live launch status. Nothing else.
+- **Settings** (the button in the header): Microsoft account, new profile (name plus the
+  five loader shortcuts), the selected profile (duplicate, recoverable trash, in-game
+  name) and appearance (reduce animations, dark mode). It is a single scrolling column of
+  cards, so it stays readable at the 860x620 minimum.
+- The header keeps the logo, the account state as a read-only chip and the screen switch.
+  The open screen is not persisted: the launcher always starts on Play.
 
 Buttons, rows, the text field and the switches are drawn in the `.slint` file rather than
 taken from `std-widgets`, because platform widgets follow the Windows theme while the
 launcher follows its own dark-mode setting; `ScrollView` is the only standard widget left.
 Both themes come from `dark-mode` through the `c-*` colour tokens on the window.
 
+JetBrains Mono (Apache/OFL, `app/ui/fonts`) is embedded at build time with `import "...ttf"`
+and set as the family of every text element, so the launcher does not depend on the font
+being installed on the machine. `app/ui/logo-mark.png` is the AL mark cropped from the
+owner's `ANDROMEDA LAUNCHER LOGO PEQUEÑO.png` render; it is the window icon and the header
+mark. The `.exe` icon resource is still the default one.
+
 Layout was checked by rendering the window headlessly with Slint's software renderer at
 1040x780 and at the 900x700 minimum, in dark and light mode, with a long profile list and
-with the intro overlay shown. No interactive click-through of the new controls on real
-Windows has been done yet, and the resize and multi-DPI cases are still untested.
+with the intro overlay shown, and by launching the real Windows build and inspecting the
+window (header mark, embedded font, card heights, window icon). Clicking every control by
+hand, resizing during a session and multi-DPI remain untested.

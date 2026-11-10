@@ -1,5 +1,12 @@
 import { ScrollView } from "std-widgets.slint";
 
+// JetBrains Mono is embedded at build time so the launcher looks the same on a
+// machine that does not have it installed. Four static weights cover 400-800.
+import "./fonts/JetBrainsMono-Regular.ttf";
+import "./fonts/JetBrainsMono-Medium.ttf";
+import "./fonts/JetBrainsMono-SemiBold.ttf";
+import "./fonts/JetBrainsMono-Bold.ttf";
+
 // Every control is drawn here instead of using the platform style: the launcher
 // has its own dark/light switch, and the platform widgets follow the system
 // theme, which made the fields look out of place in the opposite mode.
@@ -14,7 +21,7 @@ component AppButton inherits Rectangle {
     callback clicked;
 
     height: small ? 30px : 38px;
-    border-radius: 8px;
+    border-radius: 9px;
     border-width: 1px;
     opacity: enabled ? 1.0 : 0.45;
     border-color: primary
@@ -38,6 +45,7 @@ component AppButton inherits Rectangle {
     }
 
     Text {
+        font-family: "JetBrains Mono";
         text: root.label;
         width: 100%;
         height: 100%;
@@ -73,6 +81,7 @@ component AppField inherits Rectangle {
     // TextInput has no placeholder in this Slint version, so the hint is drawn
     // behind the input and hidden as soon as there is text.
     Text {
+        font-family: "JetBrains Mono";
         x: 10px;
         y: 0px;
         width: parent.width - 20px;
@@ -86,6 +95,7 @@ component AppField inherits Rectangle {
     }
 
     field := TextInput {
+        font-family: "JetBrains Mono";
         x: 10px;
         y: 0px;
         width: parent.width - 20px;
@@ -110,6 +120,7 @@ component AppSwitch inherits Rectangle {
     opacity: enabled ? 1.0 : 0.45;
 
     Text {
+        font-family: "JetBrains Mono";
         x: 0px;
         y: 0px;
         width: root.width - 46px;
@@ -158,7 +169,7 @@ component ProfileRow inherits Rectangle {
     in property <bool> dark: true;
     callback clicked;
 
-    height: 44px;
+    height: 42px;
     border-radius: 9px;
     border-width: 1px;
     border-color: selected ? (dark ? #3b47a0 : #b9c4ee) : transparent;
@@ -166,16 +177,6 @@ component ProfileRow inherits Rectangle {
         ? (dark ? #1a2350 : #e9edfc)
         : (ta.has-hover ? (dark ? #131c33 : #f3f6fd) : transparent);
     clip: true;
-
-    Rectangle {
-        visible: root.selected;
-        x: 0px;
-        y: 10px;
-        width: 3px;
-        height: root.height - 20px;
-        border-radius: 2px;
-        background: #8b8dff;
-    }
 
     ta := TouchArea {
         mouse-cursor: pointer;
@@ -185,6 +186,7 @@ component ProfileRow inherits Rectangle {
     }
 
     Text {
+        font-family: "JetBrains Mono";
         x: 14px;
         y: 0px;
         width: root.width - 26px;
@@ -192,7 +194,7 @@ component ProfileRow inherits Rectangle {
         vertical-alignment: center;
         overflow: elide;
         text: root.label;
-        font-size: 13px;
+        font-size: 12.5px;
         font-weight: root.selected ? 600 : 500;
         color: root.selected ? (root.dark ? #eef1ff : #0f1730) : (root.dark ? #b9c2e2 : #46507a);
     }
@@ -200,10 +202,11 @@ component ProfileRow inherits Rectangle {
 
 export component MainWindow inherits Window {
     title: @tr("Andromeda Launcher");
-    preferred-width: 1040px;
-    preferred-height: 780px;
-    min-width: 900px;
-    min-height: 700px;
+    icon: @image-url("logo-mark.png");
+    preferred-width: 1000px;
+    preferred-height: 700px;
+    min-width: 860px;
+    min-height: 620px;
 
     in-out property <bool> reduce-animations;
     in-out property <bool> dark-mode: true;
@@ -226,6 +229,10 @@ export component MainWindow inherits Window {
     in-out property <bool> launch-busy: false;
     in-out property <string> launch-status: "Choose a profile, then Play. Installed files are verified before launch.";
 
+    // Two screens: Play (default) and settings. The account, creation and
+    // appearance controls live on the second one, which is what keeps Play calm.
+    in-out property <bool> settings-open: false;
+
     // Theme tokens, driven by the launcher's own setting rather than the system theme.
     property <color> c-bg: dark-mode ? #070a14 : #f2f5fb;
     property <color> c-panel: dark-mode ? #0d1424 : #ffffff;
@@ -246,39 +253,23 @@ export component MainWindow inherits Window {
 
         // ---------------- header ----------------
         HorizontalLayout {
-            height: 54px;
+            height: 46px;
             spacing: 12px;
 
-            Rectangle {
-                width: 30px;
-                height: 30px;
-                border-radius: 9px;
-                background: @linear-gradient(160deg, #57e2c8 0%, #6a63f4 55%, #b06bff 100%);
-
-                Rectangle {
-                    x: 10px;
-                    y: 10px;
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 5px;
-                    background: root.c-bg;
-                }
+            Image {
+                width: 32px;
+                height: 32px;
+                source: @image-url("logo-mark.png");
+                image-fit: contain;
             }
 
-            VerticalLayout {
-                alignment: center;
-                spacing: 1px;
-                Text {
-                    text: @tr("Andromeda");
-                    font-size: 19px;
-                    font-weight: 800;
-                    color: root.c-text;
-                }
-                Text {
-                    text: @tr("Minecraft 1.21.11 - Vanilla, Fabric, Quilt, Forge or NeoForge");
-                    font-size: 11.5px;
-                    color: root.c-muted;
-                }
+            Text {
+                font-family: "JetBrains Mono";
+                text: @tr("Andromeda");
+                font-size: 18px;
+                font-weight: 800;
+                vertical-alignment: center;
+                color: root.c-text;
             }
 
             Rectangle { horizontal-stretch: 1; }
@@ -300,6 +291,7 @@ export component MainWindow inherits Window {
                     background: root.use-microsoft ? #57e2c8 : #5b678f;
                 }
                 Text {
+                    font-family: "JetBrains Mono";
                     x: 26px;
                     y: 0px;
                     width: 130px;
@@ -307,20 +299,35 @@ export component MainWindow inherits Window {
                     vertical-alignment: center;
                     overflow: elide;
                     text: root.use-microsoft ? @tr("Microsoft account") : @tr("Offline profile");
-                    font-size: 12px;
+                    font-size: 11.5px;
                     color: root.c-text;
+                }
+            }
+
+            AppButton {
+                width: 104px;
+                dark: root.dark-mode;
+                label: root.settings-open ? @tr("Back") : @tr("Settings");
+                clicked => {
+                    root.settings-open = !root.settings-open;
                 }
             }
         }
 
-        // ---------------- body ----------------
-        HorizontalLayout {
+        // ---------------- play ----------------
+        // `visible: false` still takes up space inside a layout, so the inactive
+        // screen is removed with an `if` instead of being hidden.
+        if !root.settings-open : Rectangle {
             vertical-stretch: 1;
+
+            HorizontalLayout {
+            width: 100%;
+            height: 100%;
             spacing: 14px;
 
-            // ---------- profiles ----------
+            // profiles
             Rectangle {
-                width: 316px;
+                width: 320px;
                 border-radius: 14px;
                 border-width: 1px;
                 border-color: root.c-border;
@@ -331,6 +338,7 @@ export component MainWindow inherits Window {
                     spacing: 10px;
 
                     Text {
+                        font-family: "JetBrains Mono";
                         text: @tr("Profiles");
                         font-size: 11px;
                         font-weight: 700;
@@ -339,11 +347,11 @@ export component MainWindow inherits Window {
                     }
 
                     ScrollView {
-                        min-height: 96px;
-                        max-height: 320px;
+                        vertical-stretch: 1;
+                        min-height: 120px;
 
                         VerticalLayout {
-                            spacing: 6px;
+                            spacing: 4px;
                             for name[i] in root.instance-names : ProfileRow {
                                 label: name;
                                 dark: root.dark-mode;
@@ -356,147 +364,51 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    Rectangle {
-                        height: 1px;
-                        background: root.c-border;
-                    }
-
-                    AppField {
-                        width: 100%;
-                        text <=> root.instance-name;
-                        placeholder: @tr("New instance name");
+                    AppButton {
+                        label: @tr("+ New profile");
                         dark: root.dark-mode;
                         enabled: !root.busy;
-                    }
-
-                    HorizontalLayout {
-                        spacing: 8px;
-                        AppButton {
-                            label: @tr("Create");
-                            primary: true;
-                            dark: root.dark-mode;
-                            enabled: !root.busy;
-                            clicked => { root.manage-instance("create", root.instance-name); }
-                        }
-                        AppButton {
-                            label: @tr("Duplicate");
-                            dark: root.dark-mode;
-                            enabled: !root.busy && root.instance-index > 0;
-                            clicked => { root.manage-instance("duplicate", root.instance-name); }
-                        }
-                    }
-
-                    Text {
-                        text: @tr("Create with a loader");
-                        font-size: 11px;
-                        font-weight: 700;
-                        letter-spacing: 0.6px;
-                        color: root.c-muted;
-                    }
-
-                    HorizontalLayout {
-                        spacing: 8px;
-                        AppButton {
-                            label: @tr("Fabric 0.20.1");
-                            small: true;
-                            dark: root.dark-mode;
-                            enabled: !root.busy;
-                            clicked => { root.manage-instance("createfabric", root.instance-name); }
-                        }
-                        AppButton {
-                            label: @tr("Quilt 0.30.2");
-                            small: true;
-                            dark: root.dark-mode;
-                            enabled: !root.busy;
-                            clicked => { root.manage-instance("createquilt", root.instance-name); }
-                        }
-                    }
-
-                    HorizontalLayout {
-                        spacing: 8px;
-                        AppButton {
-                            label: @tr("Forge 61.2.5");
-                            small: true;
-                            dark: root.dark-mode;
-                            enabled: !root.busy;
-                            clicked => { root.manage-instance("createforge", root.instance-name); }
-                        }
-                        AppButton {
-                            label: @tr("NeoForge 21.11.48");
-                            small: true;
-                            dark: root.dark-mode;
-                            enabled: !root.busy;
-                            clicked => { root.manage-instance("createneoforge", root.instance-name); }
-                        }
-                    }
-
-                    Rectangle { vertical-stretch: 1; }
-
-                    Rectangle {
-                        height: 1px;
-                        background: root.c-border;
-                    }
-
-                    HorizontalLayout {
-                        spacing: 8px;
-                        AppButton {
-                            label: root.trash-armed ? @tr("Confirm trash") : @tr("Move to trash");
-                            danger: true;
-                            dark: root.dark-mode;
-                            enabled: !root.busy && root.instance-index > 0;
-                            clicked => { root.manage-instance("trash", ""); }
-                        }
-                        AppButton {
-                            label: @tr("Undo trash");
-                            dark: root.dark-mode;
-                            enabled: !root.busy && root.can-restore;
-                            clicked => { root.manage-instance("restore", ""); }
+                        clicked => {
+                            root.settings-open = true;
                         }
                     }
                 }
             }
 
-            // ---------- main ----------
-            // The wrapper, not a nested layout, carries the stretch factor, and the
-            // raised max-width is required: a Rectangle that hosts a layout reports
-            // its preferred width as its maximum, so stretch alone was ignored and
-            // the column stayed at content width with dead space to its right.
+            // play: one action, no card border
             Rectangle {
                 horizontal-stretch: 1;
                 max-width: 100000px;
 
                 VerticalLayout {
-                    vertical-stretch: 1;
-                    spacing: 14px;
+                    spacing: 6px;
 
-                Rectangle {
-                    border-radius: 14px;
-                    border-width: 1px;
-                    border-color: root.c-border;
-                    background: root.c-panel;
+                    Rectangle { vertical-stretch: 1; }
 
-                    VerticalLayout {
-                        padding: 22px;
-                        spacing: 6px;
+                    Text {
+                        font-family: "JetBrains Mono";
+                        text: root.current-profile;
+                        font-size: 28px;
+                        font-weight: 800;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                        color: root.c-text;
+                    }
+                    Text {
+                        font-family: "JetBrains Mono";
+                        text: @tr("Minecraft 1.21.11");
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                        color: root.c-muted;
+                    }
 
-                        Text {
-                            text: root.launch-busy ? @tr("Working...") : @tr("Ready to play");
-                            font-size: 11px;
-                            font-weight: 700;
-                            letter-spacing: 0.6px;
-                            color: root.launch-busy ? #ffd479 : root.c-muted;
-                        }
-                        Text {
-                            text: root.current-profile;
-                            font-size: 24px;
-                            font-weight: 800;
-                            overflow: elide;
-                            color: root.c-text;
-                        }
+                    Rectangle { height: 28px; }
 
-                        Rectangle { height: 12px; }
-
+                    HorizontalLayout {
+                        alignment: center;
                         AppButton {
+                            width: 420px;
+                            height: 56px;
                             label: root.launch-busy
                                 ? @tr("Working...")
                                 : root.use-microsoft
@@ -504,142 +416,281 @@ export component MainWindow inherits Window {
                                     : @tr("Play offline");
                             primary: true;
                             dark: root.dark-mode;
-                            height: 52px;
                             enabled: !root.busy;
                             clicked => { root.launch-offline(root.local-name); }
                         }
-
-                        Rectangle { height: 4px; }
-
-                        Text {
-                            text: root.launch-status;
-                            wrap: word-wrap;
-                            font-size: 12.5px;
-                            color: root.c-muted;
-                        }
                     }
-                }
 
-                Rectangle {
-                    border-radius: 14px;
-                    border-width: 1px;
-                    border-color: root.c-border;
-                    background: root.c-panel;
+                    Rectangle { height: 12px; }
 
-                    VerticalLayout {
-                        padding: 18px;
-                        spacing: 10px;
-
-                        Text {
-                            text: @tr("Microsoft account");
-                            font-size: 11px;
-                            font-weight: 700;
-                            letter-spacing: 0.6px;
-                            color: root.c-muted;
-                        }
-                        Text {
-                            text: root.account-status;
-                            wrap: word-wrap;
-                            font-size: 12.5px;
-                            color: root.c-text;
-                        }
-
-                        HorizontalLayout {
-                            spacing: 8px;
-                            AppButton {
-                                label: @tr("Sign in with Microsoft");
-                                primary: !root.use-microsoft;
-                                dark: root.dark-mode;
-                                enabled: !root.busy;
-                                clicked => { root.account-action("signin"); }
-                            }
-                            AppButton {
-                                label: @tr("Cancel sign-in");
-                                dark: root.dark-mode;
-                                enabled: root.auth-busy;
-                                clicked => { root.account-action("cancel"); }
-                            }
-                            AppButton {
-                                label: @tr("Sign out locally");
-                                dark: root.dark-mode;
-                                enabled: !root.busy;
-                                clicked => { root.account-action("signout"); }
-                            }
-                        }
-
-                        AppSwitch {
-                            width: 250px;
-                            label: @tr("Use Microsoft account for Play");
-                            checked <=> root.use-microsoft;
-                            dark: root.dark-mode;
-                            enabled: !root.busy;
-                        }
+                    Text {
+                        font-family: "JetBrains Mono";
+                        text: root.launch-status;
+                        wrap: word-wrap;
+                        horizontal-alignment: center;
+                        font-size: 12px;
+                        color: root.c-muted;
                     }
-                }
 
-                Rectangle {
-                    border-radius: 14px;
-                    border-width: 1px;
-                    border-color: root.c-border;
-                    background: root.c-panel;
-
-                    VerticalLayout {
-                        padding: 18px;
-                        spacing: 8px;
-
-                        Text {
-                            text: @tr("Offline name");
-                            font-size: 11px;
-                            font-weight: 700;
-                            letter-spacing: 0.6px;
-                            color: root.c-muted;
-                        }
-                        AppField {
-                            width: 360px;
-                            text <=> root.local-name;
-                            placeholder: @tr("Local name (1-16 letters, numbers or _)");
-                            dark: root.dark-mode;
-                            enabled: !root.busy;
-                        }
-                        Text {
-                            text: @tr("Singleplayer only. Microsoft play verifies your Minecraft Java entitlement.");
-                            wrap: word-wrap;
-                            font-size: 11.5px;
-                            color: root.c-muted;
-                        }
-                    }
+                    Rectangle { vertical-stretch: 1; }
                 }
-                }
+            }
             }
         }
 
-        // ---------------- footer ----------------
-        HorizontalLayout {
-            height: 30px;
-            spacing: 18px;
+        // ---------------- settings ----------------
+        if root.settings-open : Rectangle {
+            vertical-stretch: 1;
 
-            AppSwitch {
-                width: 168px;
-                label: @tr("Reduce animations");
-                checked <=> root.reduce-animations;
-                dark: root.dark-mode;
-                toggled => { root.settings-changed(); }
-            }
-            AppSwitch {
-                width: 118px;
-                label: @tr("Dark mode");
-                checked <=> root.dark-mode;
-                dark: root.dark-mode;
-                toggled => { root.settings-changed(); }
-            }
+            ScrollView {
+                width: 100%;
+                height: 100%;
 
-            Rectangle { horizontal-stretch: 1; }
+                VerticalLayout {
+                    spacing: 14px;
 
-            Text {
-                text: @tr("Private development build");
-                font-size: 11px;
-                color: root.c-muted;
-                vertical-alignment: center;
+                    Rectangle {
+                        border-radius: 14px;
+                        border-width: 1px;
+                        border-color: root.c-border;
+                        background: root.c-panel;
+
+                        VerticalLayout {
+                            padding: 18px;
+                            spacing: 10px;
+
+                            Text {
+                                font-family: "JetBrains Mono";
+                                text: @tr("Microsoft account");
+                                font-size: 11px;
+                                font-weight: 700;
+                                letter-spacing: 0.6px;
+                                color: root.c-muted;
+                            }
+
+                            Text {
+                                font-family: "JetBrains Mono";
+                                text: root.account-status;
+                                wrap: word-wrap;
+                                font-size: 12px;
+                                color: root.c-text;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                AppButton {
+                                    width: 200px;
+                                    label: @tr("Sign in");
+                                    primary: !root.use-microsoft;
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy;
+                                    clicked => { root.account-action("signin"); }
+                                }
+                                AppButton {
+                                    width: 140px;
+                                    label: @tr("Cancel");
+                                    dark: root.dark-mode;
+                                    enabled: root.auth-busy;
+                                    clicked => { root.account-action("cancel"); }
+                                }
+                                AppButton {
+                                    width: 150px;
+                                    label: @tr("Sign out");
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy;
+                                    clicked => { root.account-action("signout"); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+
+                            AppSwitch {
+                                width: 300px;
+                                label: @tr("Use for Play");
+                                checked <=> root.use-microsoft;
+                                dark: root.dark-mode;
+                                enabled: !root.busy;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        border-radius: 14px;
+                        border-width: 1px;
+                        border-color: root.c-border;
+                        background: root.c-panel;
+
+                        VerticalLayout {
+                            padding: 18px;
+                            spacing: 10px;
+
+                            Text {
+                                font-family: "JetBrains Mono";
+                                text: @tr("New profile");
+                                font-size: 11px;
+                                font-weight: 700;
+                                letter-spacing: 0.6px;
+                                color: root.c-muted;
+                            }
+
+                            AppField {
+                                width: 100%;
+                                text <=> root.instance-name;
+                                placeholder: @tr("Instance name");
+                                dark: root.dark-mode;
+                                enabled: !root.busy;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                AppButton {
+                                    width: 100px;
+                                    label: @tr("Vanilla");
+                                    small: true;
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy;
+                                    clicked => { root.manage-instance("create", root.instance-name); }
+                                }
+                                AppButton {
+                                    width: 100px;
+                                    label: @tr("Fabric");
+                                    small: true;
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy;
+                                    clicked => { root.manage-instance("createfabric", root.instance-name); }
+                                }
+                                AppButton {
+                                    width: 100px;
+                                    label: @tr("Quilt");
+                                    small: true;
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy;
+                                    clicked => { root.manage-instance("createquilt", root.instance-name); }
+                                }
+                                AppButton {
+                                    width: 100px;
+                                    label: @tr("Forge");
+                                    small: true;
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy;
+                                    clicked => { root.manage-instance("createforge", root.instance-name); }
+                                }
+                                AppButton {
+                                    width: 100px;
+                                    label: @tr("NeoForge");
+                                    small: true;
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy;
+                                    clicked => { root.manage-instance("createneoforge", root.instance-name); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        border-radius: 14px;
+                        border-width: 1px;
+                        border-color: root.c-border;
+                        background: root.c-panel;
+
+                        VerticalLayout {
+                            padding: 18px;
+                            spacing: 10px;
+
+                            Text {
+                                font-family: "JetBrains Mono";
+                                text: @tr("Selected profile");
+                                font-size: 11px;
+                                font-weight: 700;
+                                letter-spacing: 0.6px;
+                                color: root.c-muted;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 8px;
+                                AppButton {
+                                    width: 140px;
+                                    label: @tr("Duplicate");
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy && root.instance-index > 0;
+                                    clicked => { root.manage-instance("duplicate", root.instance-name); }
+                                }
+                                AppButton {
+                                    width: 160px;
+                                    label: root.trash-armed ? @tr("Confirm trash") : @tr("Move to trash");
+                                    danger: true;
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy && root.instance-index > 0;
+                                    clicked => { root.manage-instance("trash", ""); }
+                                }
+                                AppButton {
+                                    width: 140px;
+                                    label: @tr("Undo trash");
+                                    dark: root.dark-mode;
+                                    enabled: !root.busy && root.can-restore;
+                                    clicked => { root.manage-instance("restore", ""); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+
+                            AppField {
+                                width: 100%;
+                                text <=> root.local-name;
+                                placeholder: @tr("Ingame name");
+                                dark: root.dark-mode;
+                                enabled: !root.busy;
+                            }
+
+                            Text {
+                                font-family: "JetBrains Mono";
+                                text: @tr("Offline play is singleplayer only. Microsoft play verifies your Java entitlement.");
+                                wrap: word-wrap;
+                                font-size: 11px;
+                                color: root.c-muted;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        border-radius: 14px;
+                        border-width: 1px;
+                        border-color: root.c-border;
+                        background: root.c-panel;
+
+                        VerticalLayout {
+                            padding: 18px;
+                            spacing: 10px;
+
+                            Text {
+                                font-family: "JetBrains Mono";
+                                text: @tr("Appearance");
+                                font-size: 11px;
+                                font-weight: 700;
+                                letter-spacing: 0.6px;
+                                color: root.c-muted;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 24px;
+                                AppSwitch {
+                                    width: 220px;
+                                    label: @tr("Reduce animations");
+                                    checked <=> root.reduce-animations;
+                                    dark: root.dark-mode;
+                                    toggled => { root.settings-changed(); }
+                                }
+                                AppSwitch {
+                                    width: 160px;
+                                    label: @tr("Dark mode");
+                                    checked <=> root.dark-mode;
+                                    dark: root.dark-mode;
+                                    toggled => { root.settings-changed(); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -661,6 +712,7 @@ export component MainWindow inherits Window {
         }
 
         Text {
+            font-family: "JetBrains Mono";
             x: 0px;
             y: parent.height - 48px;
             width: parent.width;
