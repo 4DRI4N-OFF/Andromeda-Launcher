@@ -6,4 +6,5 @@ pub mod session_store;
 pub mod settings;
 pub mod vanilla;
 
+pub mod fabric;
 pub mod pkce;
