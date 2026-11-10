@@ -26,3 +26,11 @@ Sources:
 - https://meta.fabricmc.net/v2/versions/loader/1.21.11
 
 Live observation: first stable loader returned was 0.20.1. This is a recorded observation, not a pinned permanent latest version. The returned profile included a JVM argument and inherited vanilla 1.21.11, so ignoring overlay arguments is not safe.
+
+## Verified downloader checkpoint
+
+The bounded headless installer is implemented. Redirects are disabled, metadata/jar sizes are capped, Maven paths are strict, directories/files reject links/reparse points, existing corrupt cache files are not overwritten, and every jar requires a SHA-1 supplied by official Meta or the official Maven sidecar. New cache writes are temporary and renamed only after digest/size verification.
+
+On November 10, a live headless check installed and verified all 8 client libraries for Minecraft 1.21.11 / Fabric 0.20.1 in data/fabric-test-cache. A second run reused and reverified the same cache. No game, mod, account prompt or saved instance was opened or changed. 43 core tests and strict all-target Clippy pass.
+
+Launch overlay integration, per-instance loader selection and real loaded-mod proof remain unfinished. The headless example is: cargo run -p andromeda-core --example fabric_check -- CACHE_DIR GAME_VERSION LOADER_VERSION.
