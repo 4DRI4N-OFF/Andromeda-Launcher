@@ -30,18 +30,18 @@ Private development branch and draft PR. Phases 2-4 are integrated into main. Ph
 
 - First Fabric modded run using API 0.141.6 crashed with access violation 0xc0000005 in lwjgl.dll. A no-mod control and the older API set worked. The cause is not proven; this is still an unresolved reliability caveat.
 - Earlier automation selected default vanilla rather than the intended instance. Those windows closed at the menu, without entering worlds. A real click and visible label then confirmed each loader selection.
-- No world creation, world conversion or in-world gameplay has been tested here. No existing worlds were entered.
-- UI restart persistence and UI duplicate/trash flow still need explicit visual coverage. Return-to-ready after NeoForge closed was visually confirmed with Play enabled. Headless serialization/duplicate/trash checks passed for all four loaders.
-- Quilt offline launch-plan coverage passed; actual local-profile Quilt game coverage remains.
+- A new disposable NeoForge world named Instinct disposable Jade proof was created only inside its test instance. Actual rendered terrain/HUD was inspected, and graceful close saved every dimension. No prior world was entered or converted. Jade overlay behavior has not yet been proven; no in-world checks yet for the other three loaders.
+- Real UI restart listed and selected the existing Forge profile with the correct label. Duplicate, armed trash confirmation, confirmed trash and Undo last trash passed on a new Forge-only copy; restored ID, loader and both mod jars were checked. Last selected dropdown row is not persisted. Return-to-ready after NeoForge closed was visually confirmed with Play enabled. Headless serialization/duplicate/trash checks passed for all four loaders.
+- Quilt, Forge and NeoForge local-profile game menus passed with log identity LoaderTest and graceful exit 0, supplementing the Fabric local-profile proof. Loaded-mod UI was visually inspected for all four. These are local identities, not machine-wide network-isolation tests.
 - Forge 61.2.5 authenticated live proof passed with Controlling 29.0.1 and Searchables 1.0.4, both SHA-512 checked. Inspected title menu and built-in mod details show them loaded.
 - NeoForge 21.11.48 authenticated live proof passed with SHA-512-checked Jade 21.1.5+neoforge. Inspected title menu and Jade details explicitly show State: loaded.
-- Four-loader installation and loaded-mod menu proof is complete, but phase-5 regression/gameplay coverage is not. Actual local-profile game proof currently covers Fabric only.
+- Four-loader installation and loaded-mod menu proof is complete, but phase-5 regression/gameplay coverage is not. Actual local-profile game-menu proof covers all four loaders.
 - Disposable instances and checked mod jars are retained for repeat tests. No unrelated data was deleted.
 - Phase 5 remains incomplete and the PR stays draft.
 
 ## Forge and NeoForge live checks
 
-Both were created and selected through the real launcher UI in clearly named disposable instances. Microsoft profile logs showed _4DRI4N_. No world was entered. The separate family build uses target-phase5-family, leaving the normal phase-3 executable unchanged throughout its build. Cached launch plans were rechecked after the final integrity tightening.
+Both were created and selected through the real launcher UI in clearly named disposable instances. Microsoft profile logs showed _4DRI4N_. No world was entered during those authenticated menu checks. The later local-profile NeoForge test created only a fresh disposable world, as described above. The separate family build uses target-phase5-family, leaving the normal phase-3 executable unchanged throughout its build. Cached launch plans were rechecked after the final integrity tightening.
 
 ## Sources
 
