@@ -19,6 +19,17 @@ fn data_dir() -> PathBuf {
         .expect("workspace root")
         .join("data")
 }
+fn refresh_instances(
+    ui: &MainWindow,
+    shared: &std::sync::Arc<std::sync::Mutex<Vec<andromeda_core::instances::Instance>>>,
+    items: Vec<andromeda_core::instances::Instance>,
+) {
+    let mut labels: Vec<slint::SharedString> = vec!["Default profile (phase 2)".into()];
+    labels.extend(items.iter().map(|i| i.name.clone().into()));
+    *shared.lock().expect("instance state") = items;
+    ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(labels)));
+    ui.set_instance_index(0);
+}
 fn main() -> Result<(), slint::PlatformError> {
     let dir = data_dir();
     let _ = std::fs::create_dir_all(dir.join("logs"));
@@ -89,6 +100,69 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         }
     });
+    let instance_root = dir.join("instances");
+    let instances = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    match andromeda_core::instances::list(&instance_root) {
+        Ok(items) => refresh_instances(&ui, &instances, items),
+        Err(e) => ui.set_launch_status(format!("Could not read instances: {e}").into()),
+    }
+    let last_trash = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
+    let change_weak = ui.as_weak();
+    let change_instances = instances.clone();
+    ui.on_instance_selected(move |index| {
+        if let Some(ui) = change_weak.upgrade() {
+            ui.set_trash_armed(false);
+            if let Some(i) = index
+                .checked_sub(1)
+                .and_then(|n| change_instances.lock().ok()?.get(n as usize).cloned())
+            {
+                ui.set_local_name(i.local_name.into());
+            }
+        }
+    });
+    let manage_weak = ui.as_weak();
+    let manage_instances = instances.clone();
+    let manage_root = instance_root.clone();
+    let manage_trash = last_trash.clone();
+    ui.on_manage_instance(move |action, name| {
+        let Some(ui) = manage_weak.upgrade() else { return; };
+        if ui.get_launch_busy() { return; }
+        let selected = ui.get_instance_index().checked_sub(1).and_then(|n| manage_instances.lock().ok()?.get(n as usize).cloned());
+        if action == "trash" && !ui.get_trash_armed() {
+            ui.set_trash_armed(true);
+            ui.set_launch_status("Click Confirm trash to move this instance and its saves to recoverable launcher trash.".into());
+            return;
+        }
+        ui.set_trash_armed(false);
+        ui.set_launch_busy(true);
+        ui.set_launch_status("Updating instances...".into());
+        let weak = manage_weak.clone();
+        let root = manage_root.clone();
+        let shared = manage_instances.clone();
+        let trash = manage_trash.clone();
+        let local_name = ui.get_local_name().to_string();
+        let name = name.to_string(); let action = action.to_string();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<Vec<andromeda_core::instances::Instance>, Box<dyn std::error::Error + Send + Sync>> {
+                match action.as_str() {
+                    "create" => { andromeda_core::instances::create(&root, &name, &local_name, 2048)?; }
+                    "duplicate" => { let i = selected.ok_or("Select an instance, not the default profile")?; andromeda_core::instances::duplicate(&root, &i.id, &name)?; }
+                    "trash" => { let i = selected.ok_or("The default profile cannot be trashed here")?; andromeda_core::instances::trash(&root, &i.id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = Some(i.id); }
+                    "restore" => { let id = trash.lock().map_err(|_| "Instance lock unavailable")?.clone().ok_or("No instance to restore in this session")?; andromeda_core::instances::restore(&root, &id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = None; }
+                    _ => return Err("Unknown instance action".into()),
+                }
+                andromeda_core::instances::list(&root)
+            })();
+            let can_restore = trash.lock().map(|t| t.is_some()).unwrap_or(false);
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                match result {
+                    Ok(items) => { refresh_instances(&ui, &shared, items); ui.set_launch_status("Instances updated. Saved worlds remain in their own folders.".into()); }
+                    Err(e) => ui.set_launch_status(format!("Could not update instances: {e}").into()),
+                }
+                ui.set_can_restore(can_restore); ui.set_launch_busy(false);
+            });
+        });
+    });
     let launch_weak = ui.as_weak();
     let vanilla_dir = dir.join("vanilla");
     ui.on_launch_offline(move |name| {
@@ -98,6 +172,19 @@ fn main() -> Result<(), slint::PlatformError> {
         if ui.get_launch_busy() {
             return;
         }
+        let selected = ui
+            .get_instance_index()
+            .checked_sub(1)
+            .and_then(|n| instances.lock().ok()?.get(n as usize).cloned());
+        let selected_game = selected
+            .as_ref()
+            .map(|i| andromeda_core::instances::game_dir(&instance_root, &i.id));
+        if let Some(Err(e)) = selected_game.as_ref() {
+            ui.set_launch_status(format!("Could not open instance: {e}").into());
+            return;
+        }
+        let game_dir = selected_game.and_then(Result::ok);
+        let memory = selected.as_ref().map(|i| i.memory_mb).unwrap_or(2048);
         ui.set_launch_busy(true);
         ui.set_launch_status("Preparing installed vanilla 1.21.11...".into());
         let weak = launch_weak.clone();
@@ -105,7 +192,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let name = name.to_string();
         std::thread::spawn(move || {
             let run = (|| -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-                let plan = andromeda_core::launch::prepare(&root, "1.21.11", &name, 2048)?;
+                let plan = match game_dir {
+                    Some(game) => andromeda_core::launch::prepare_in_game_dir(
+                        &root, "1.21.11", &name, memory, &game,
+                    )?,
+                    None => andromeda_core::launch::prepare(&root, "1.21.11", &name, memory)?,
+                };
                 let mut game = plan.spawn()?;
                 tracing::info!(pid = game.id(), "Local-profile Minecraft started");
                 let _ = weak.upgrade_in_event_loop(|ui| {
