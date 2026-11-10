@@ -1,4 +1,4 @@
-//! Phase 2: local-profile vanilla launch. No network authentication or server bypass.
+//! Verified vanilla launch with a local profile or a checked Microsoft session.
 use crate::vanilla::{allowed, path, valid};
 use serde_json::Value;
 use std::{
@@ -12,7 +12,6 @@ use std::{
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 const VERSION: &str = "1.21.11";
 
-#[derive(Debug)]
 pub struct LaunchPlan {
     pub java: PathBuf,
     pub args: Vec<String>,
@@ -145,13 +144,44 @@ pub fn prepare_in_game_dir(
     memory_mb: u32,
     game: &Path,
 ) -> Result<LaunchPlan> {
+    prepare_identity(root, version, name, memory_mb, game, None)
+}
+
+pub fn prepare_authenticated(
+    root: &Path,
+    version: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: &crate::auth::Session,
+) -> Result<LaunchPlan> {
+    if session.is_expired() {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    prepare_identity(
+        root,
+        version,
+        &session.profile.name,
+        memory_mb,
+        game,
+        Some(session),
+    )
+}
+fn prepare_identity(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+) -> Result<LaunchPlan> {
     if version != VERSION {
         return Err("Phase 2 currently supports installed vanilla 1.21.11 only".into());
     }
     if !(512..=8192).contains(&memory_mb) {
         return Err("Memory must be between 512 and 8192 MB".into());
     }
-    let uuid = offline_uuid(name)?;
+    let local_uuid = offline_uuid(name)?;
+    let uuid = session.map(|s| s.profile.id.clone()).unwrap_or(local_uuid);
     let root = std::path::absolute(root)?;
     if !root.is_dir() {
         return Err("Install directory is missing".into());
@@ -223,10 +253,27 @@ pub fn prepare_in_game_dir(
     let vars = HashMap::from([
         ("auth_player_name", name.to_owned()),
         ("auth_uuid", uuid),
-        ("auth_access_token", "0".into()),
-        ("clientid", String::new()),
+        (
+            "auth_access_token",
+            session.map(|s| s.access_token()).unwrap_or("0").into(),
+        ),
+        (
+            "clientid",
+            if session.is_some() {
+                crate::auth::CLIENT_ID.into()
+            } else {
+                String::new()
+            },
+        ),
         ("auth_xuid", String::new()),
-        ("user_type", "legacy".into()),
+        (
+            "user_type",
+            if session.is_some() {
+                "msa".into()
+            } else {
+                "legacy".into()
+            },
+        ),
         ("version_name", version.to_owned()),
         ("version_type", "release".into()),
         ("game_directory", game_dir.to_string_lossy().into_owned()),
