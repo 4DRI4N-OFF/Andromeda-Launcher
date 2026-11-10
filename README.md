@@ -4,7 +4,8 @@ A Minecraft Java launcher written in Rust, with a testable core and native Slint
 
 ## Current state
 
-- Native settings UI with persisted dark mode and reduced-motion preference.
+- Native Slint UI with a profile list, a Play panel and account/settings cards; dark mode, reduced motion and the selected instance are persisted.
+- Controls are drawn in the Slint UI instead of using platform widgets, so the launcher's own dark/light switch applies regardless of the Windows theme.
 - Approved animated logo intro, click to skip, fully skipped with Reduce animations.
 - Headless vanilla version list and verified downloader, including Java.
 - Play installed vanilla 1.21.11 offline with a local profile from the UI or CLI.
@@ -37,3 +38,22 @@ Use a separate branch and pull request for every change. Keep this repository pr
 ## Disclaimer
 
 Not an official Minecraft product. Not affiliated with Mojang or Microsoft. Downloading game files does not grant a Minecraft license. Project licensing is not yet decided.
+## Interface
+
+`app/ui/main.slint` is organised around what the launcher actually does:
+
+- **Profiles** (left): one clickable row per instance, then the new-instance name, Create/Duplicate, the four loader shortcuts and the recoverable trash pair.
+- **Play** (right): the selected profile, a full-width Play button and the live launch status.
+- **Microsoft account**: sign-in, cancel, local sign-out and the "use for Play" switch.
+- **Offline name**: the local player name, kept next to its singleplayer-only note.
+- **Footer**: reduce animations, dark mode.
+
+Buttons, rows, the text field and the switches are drawn in the `.slint` file rather than
+taken from `std-widgets`, because platform widgets follow the Windows theme while the
+launcher follows its own dark-mode setting; `ScrollView` is the only standard widget left.
+Both themes come from `dark-mode` through the `c-*` colour tokens on the window.
+
+Layout was checked by rendering the window headlessly with Slint's software renderer at
+1040x780 and at the 900x700 minimum, in dark and light mode, with a long profile list and
+with the intro overlay shown. No interactive click-through of the new controls on real
+Windows has been done yet, and the resize and multi-DPI cases are still untested.
