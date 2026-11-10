@@ -13,10 +13,19 @@ const SCHEMA: u32 = 1;
 pub enum Loader {
     Fabric { version: String },
     Quilt { version: String },
+    Forge { version: String },
+    NeoForge { version: String },
 }
 impl Loader {
     fn validate(&self) -> Result<()> {
         match self {
+            Self::Forge { version }
+                if version == crate::upstream_install::Kind::Forge.version() => {}
+            Self::NeoForge { version }
+                if version == crate::upstream_install::Kind::NeoForge.version() => {}
+            Self::Forge { .. } | Self::NeoForge { .. } => {
+                return Err("Unsupported pinned Forge-family version".into())
+            }
             Self::Quilt { version } => {
                 crate::fabric::maven_path(&format!("org.quiltmc:quilt-loader:{version}"))?;
             }

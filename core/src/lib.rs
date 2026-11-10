@@ -11,3 +11,4 @@ pub mod fabric_install;
 pub mod pkce;
 pub mod quilt;
 pub mod quilt_install;
+pub mod upstream_install;

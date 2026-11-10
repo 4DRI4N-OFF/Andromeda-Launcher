@@ -44,7 +44,7 @@ export component MainWindow inherits Window {
                 color: root.dark-mode ? #8d97c4 : #4a5280;
             }
             Text {
-                text: @tr("Minecraft 1.21.11 - Vanilla, Fabric or Quilt");
+                text: @tr("Minecraft 1.21.11 - Vanilla, Fabric, Quilt, Forge or NeoForge");
                 font-size: 18px;
                 color: root.dark-mode ? #e8ecff : #10142a;
             }
@@ -61,6 +61,11 @@ export component MainWindow inherits Window {
                 Button { text: @tr("Create Fabric 0.20.1"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.manage-instance("createfabric", root.instance-name); } }
                 Button { text: @tr("Create Quilt 0.30.2"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.manage-instance("createquilt", root.instance-name); } }
                 Button { text: @tr("Duplicate"); enabled: !root.launch-busy && !root.auth-busy && root.instance-index > 0; clicked => { root.manage-instance("duplicate", root.instance-name); } }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Button { text: @tr("Create Forge 61.2.5"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.manage-instance("createforge", root.instance-name); } }
+                Button { text: @tr("Create NeoForge 21.11.48"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.manage-instance("createneoforge", root.instance-name); } }
             }
             HorizontalLayout {
                 spacing: 8px;

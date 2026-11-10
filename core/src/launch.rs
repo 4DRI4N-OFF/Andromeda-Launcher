@@ -189,7 +189,7 @@ pub fn prepare_fabric(
         memory_mb,
         game,
         session,
-        Some((false, loader)),
+        Some(ClientLoader::Fabric(loader)),
     )
 }
 pub fn prepare_quilt(
@@ -212,8 +212,34 @@ pub fn prepare_quilt(
         memory_mb,
         game,
         session,
-        Some((true, loader)),
+        Some(ClientLoader::Quilt(loader)),
     )
+}
+/// Pinned Forge-family launch, using only a dedicated installer cache.
+pub fn prepare_upstream(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    kind: crate::upstream_install::Kind,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    let overlay = match kind {
+        crate::upstream_install::Kind::Forge => ClientLoader::Forge,
+        crate::upstream_install::Kind::NeoForge => ClientLoader::NeoForge,
+    };
+    prepare_identity(root, version, name, memory_mb, game, session, Some(overlay))
+}
+enum ClientLoader<'a> {
+    Fabric(&'a str),
+    Quilt(&'a str),
+    Forge,
+    NeoForge,
 }
 fn prepare_identity(
     root: &Path,
@@ -222,7 +248,7 @@ fn prepare_identity(
     memory_mb: u32,
     game: &Path,
     session: Option<&crate::auth::Session>,
-    fabric_loader: Option<(bool, &str)>,
+    fabric_loader: Option<ClientLoader<'_>>,
 ) -> Result<LaunchPlan> {
     if version != VERSION {
         return Err("Phase 2 currently supports installed vanilla 1.21.11 only".into());
@@ -262,17 +288,36 @@ fn prepare_identity(
     fs::create_dir_all(&game_dir)?;
     let natives = root.join("natives").join(version);
     fs::create_dir_all(&natives)?;
+    let mut library_directory = root.join("libraries");
     let fabric = fabric_loader
-        .map(|(quilt, loader)| {
-            if quilt {
+        .map(|loader| match loader {
+            ClientLoader::Fabric(loader) => {
+                crate::fabric_install::install(&root.join("fabric-libraries"), version, loader)
+            }
+            ClientLoader::Quilt(loader) => {
                 let q =
                     crate::quilt_install::install(&root.join("quilt-libraries"), version, loader)?;
                 Ok(crate::fabric_install::InstalledFabric {
                     profile: q.profile,
                     libraries: q.libraries,
                 })
-            } else {
-                crate::fabric_install::install(&root.join("fabric-libraries"), version, loader)
+            }
+            ClientLoader::Forge | ClientLoader::NeoForge => {
+                let (kind, cache) = match loader {
+                    ClientLoader::Forge => (crate::upstream_install::Kind::Forge, "forge-61.2.5"),
+                    _ => (crate::upstream_install::Kind::NeoForge, "neoforge-21.11.48"),
+                };
+                let f = crate::upstream_install::install(
+                    &root.join("upstream-installations").join(cache),
+                    &java,
+                    &root,
+                    kind,
+                )?;
+                library_directory = f.library_dir;
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: f.profile,
+                    libraries: f.libraries,
+                })
             }
         })
         .transpose()?;
@@ -318,6 +363,10 @@ fn prepare_identity(
         )?,
     )?;
     let vars = HashMap::from([
+        (
+            "library_directory",
+            library_directory.to_string_lossy().into_owned(),
+        ),
         ("auth_player_name", name.to_owned()),
         ("auth_uuid", uuid),
         (
