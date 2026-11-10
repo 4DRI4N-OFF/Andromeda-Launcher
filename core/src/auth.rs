@@ -346,6 +346,11 @@ impl Session {
         self.minecraft_token.expose()
     }
 }
+pub(crate) fn finish_authorization_code(http: &dyn Transport, r: Reply) -> Result<Session> {
+    let (access, refresh) = token_reply(r)?;
+    exchange(http, access, refresh)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

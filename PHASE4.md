@@ -1,45 +1,48 @@
 # Phase 4: Microsoft sign-in (validation in progress)
 
-This branch adds Microsoft sign-in, protected session storage and authenticated play. It is not ready to merge until the live sign-in and game checks below pass.
+This branch adds Microsoft sign-in, protected session storage and authenticated Play. Keep this PR draft. The owner's successful sign-in confirmation is not proof of the game, skin or reopen/refresh checks below.
 
 ## Registration and flow
 
-The owner explicitly chose to reuse Kimberlite's Azure client ID: `e38aa735-6b06-4111-9d58-5190f3d754db`. It was recovered from the local Kimberlite core's auth.rs, not substituted from another launcher. The app requests `XboxLive.signin offline_access` from the Microsoft `consumers` device-code endpoint. No client secret, redirect URI, Azure setting change or Kimberlite token-cache reuse.
+The owner selected Kimberlite's public client ID `e38aa735-6b06-4111-9d58-5190f3d754db`. The Azure registration was inspected live on November 10, 2026: its name is Andromeda Launcher, its audience supports personal accounts and organizational tenants, and public-client flows are enabled.
 
-The registration's current public-client settings, sign-in audience, consent branding and Minecraft API approval have not yet been verified live. Source configuration and prior use are not proof that they still work. Microsoft may show the existing Kimberlite registration name rather than Andromeda.
+The current UI opens Microsoft's hosted sign-in page in an isolated WebView2 window only when **Sign in with Microsoft** is pressed. It uses authorization code + S256 PKCE, a random state checked on return, and the existing desktop redirect `https://login.microsoftonline.com/common/oauth2/nativeclient`. It requests `XboxLive.signin offline_access` from the consumers endpoint. No client secret, injected JavaScript, credential capture, external popups or Kimberlite token-cache reuse.
 
-**Sign in with Microsoft** requests a code only when pressed. The user opens the returned Microsoft verification page and completes consent themselves. Polling honors pending/slow-down, expiry, decline and cancellation. The app exchanges Microsoft to Xbox Live, then XSTS, then Minecraft, verifies Java entitlement and reads the Minecraft profile. Known account/family/registration errors are shown without raw response bodies.
+An earlier Windows WAM probe failed with ProviderRejected (0x80070525). The owner then requested the standard Microsoft login window. The separately approved broker redirect remains registered but is not used by this WebView2 flow. No account reset was performed. Device-code support remains in the core, but is not currently exposed as a UI fallback.
 
-**Use Microsoft account for Play** refreshes and verifies the saved session, then launches with the account's Minecraft profile and access token. It does not fall back silently to offline play. Offline local profiles remain a separate explicit choice. Switching between local and Microsoft identities can change player inventory/position in an existing world because their UUIDs differ.
+The code exchanges Microsoft authorization for Xbox Live, XSTS and Minecraft tokens, verifies Java entitlement and reads the Minecraft profile. Known errors do not echo raw response bodies. **Use Microsoft account for Play** refreshes and verifies the protected session and uses the Minecraft profile. It does not silently fall back to offline play. Switching between offline and Microsoft identities can change inventory/position in an existing world because UUIDs differ.
 
 ## Session safety
 
-- Only the refresh token and profile are persisted, protected by Windows current-user DPAPI in `data/auth/session.dpapi` with app-specific entropy. No cleartext-token file or raw auth-body logging.
-- The protected cache is separate from Kimberlite. Microsoft/Minecraft access tokens remain in memory only.
-- Secret-bearing types have no Debug/Display/Serialize. Launch plans no longer derive Debug because launch arguments can contain an access token.
+- Only the refresh token and profile are persisted, protected by Windows current-user DPAPI in `data/auth/session.dpapi` with app-specific entropy. Access tokens remain in memory.
+- Secret-bearing types have no Debug/Display/Serialize. Launch plans have no Debug because Minecraft launch arguments contain an access token.
 - Protected writes use a temporary file then replace the old session. Refresh checks that the returned profile matches the saved account.
-- **Sign out locally** removes Andromeda's protected file only. It does not sign out Microsoft's browser, revoke consent, or alter Kimberlite.
-- Cancellation prevents saving the newly returned session. Closing the app cancels pending polling.
+- Sign out locally removes this app's protected cache only, not Microsoft consent, browser sessions or Kimberlite data.
+- Cancellation prevents saving the returned session. Closing the sign-in window returns control to the launcher.
+- Source logging review found no auth code, verifier, state, token, callback URL or raw auth-response logging. A pattern scan of the current application logs returned zero matches for access/refresh-token keys, auth-code/verifier keys, Bearer headers or JWT-like values. This is a bounded check, not a guarantee against every possible secret format.
 
-A running Java process receives its access token as a normal Minecraft launch argument. This is not protection against another process running as the same Windows user, nor against a compromised account/device. Refresh-token revocation or an interrupted rotating refresh may require signing in again.
+Minecraft receives its access token as a normal Java launch argument. This does not protect it against other processes running as the same Windows user or a compromised device. Revocation or interrupted rotating refresh may require signing in again.
 
-## Verified so far
+## Verified
 
-- Windows fmt, clippy all targets with `-D warnings`, 32 tests.
-- Mocked full auth chain, entitlement denial, family/app errors, URI allowlist, pending/slow-down/decline and cancellation.
-- Real Windows DPAPI encrypt/decrypt round trip; protected bytes do not contain the test token in cleartext and corrupt bytes fail.
-- UI compiled and a separate phase-4 executable linked without replacing the last phase-3 test executable.
+- Windows core tests: 35 passed, including PKCE/callback checks and a real current-user DPAPI round trip. Synthetic auth-chain tests cover entitlement/account errors and cancellation.
+- Windows workspace all-target Clippy with `-D warnings` and formatting checks passed.
+- A separate test executable was built without replacing the phase-3 `target/debug/andromeda.exe`.
+- On November 10, the Sign in crash was traced to a native Windows class-name collision between Slint/winit and Tao. The WebView2 window now has a unique class name.
+- The fixed executable's actual Sign in button opened the Microsoft page. Its pixels were inspected. Closing it returned "Sign-in cancelled."; opening it again worked while the launcher stayed alive. No credentials were entered during these automated checks.
+- At 06:15 CET on November 10, 2026, the owner reported "Ya funciona la cuenta" after using `Andromeda-Phase4-WebView2-Test/andromeda-fixed.exe`. At 06:17 he clarified that the session was not remembered after reopening. Treat these as owner reports, not proof of the expected skin or a working reopen refresh.
+- The protected cache did exist. The startup path had only shown a saved-session notice without loading/refreshing it or restoring the account UI. The new separate `andromeda-restore.exe` silently refreshes it at startup, restores the profile and Microsoft Play choice on success, and keeps the cache on transient errors. Two controlled launches, separated by a normal close, both restored `_4DRI4N_` without a Microsoft window. The actual pixels showed the restored profile and Microsoft Play selected; both processes closed normally.
 
 ## Still required before merge
 
-- Safe-window pixel/interaction inspection of the phase-4 UI, including cancellation and local sign-out.
-- Owner-ready real code/consent test using this registration. Verify configured flow/scope and any Microsoft/Minecraft rejection before changing anything.
-- Account/profile/skin check, authenticated launch into an isolated test world, close/reopen protected refresh and return-to-ready.
-- Regression checks for explicit offline play and existing instances.
-- Prior phase proof/merge gates remain in effect. No auto-merge, release or public publication.
+- The owner's 06:17 "Si y no, aun no recuerda la sesion" answered a combined question about entering a world with Microsoft Play/skin and remembering the session. Record owner-reported game/account success, but do not substitute that answer for independent in-world or separate skin evidence.
+- Independently check Play with Microsoft in an isolated test world and return to ready; separately inspect the expected in-game skin.
+- Reopen refresh now passes the two controlled launch checks above. Longer-term expiry/revocation behavior remains covered by synthetic tests rather than a timed live expiry test.
+- Check local sign-out and explicit offline-play/instance regressions.
+- Keep prior phase-1/intro proof and PR #5/#6/#7 merge gates unchanged. No auto-merge, release or public publication.
 
-Microsoft references checked for this implementation:
+References checked:
 
-- https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code
+- https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow
+- https://learn.microsoft.com/en-us/entra/msal/dotnet/acquiring-tokens/using-web-browsers
 - https://learn.microsoft.com/en-us/entra/identity-platform/reply-url
-- https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration

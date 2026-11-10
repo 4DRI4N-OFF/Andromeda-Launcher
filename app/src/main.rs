@@ -4,6 +4,7 @@
 )]
 
 mod intro;
+mod native_login;
 use andromeda_core::settings::Settings;
 use slint::ComponentHandle;
 use std::{
@@ -43,6 +44,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let settings_path = dir.join("settings.json");
     let s = Settings::load(&settings_path);
     let ui = MainWindow::new()?;
+    tracing::info!("Launcher UI created");
     ui.set_reduce_animations(s.reduce_animations);
     ui.set_dark_mode(s.dark_mode);
     let timer = Rc::new(slint::Timer::default());
@@ -101,56 +103,103 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
     let session_path = dir.join("auth/session.dpapi");
-    if session_path.is_file() {
-        ui.set_account_status(
-            "A protected session is saved. It will be verified when you play with Microsoft."
-                .into(),
-        );
-    }
     let auth_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let auth_weak = ui.as_weak();
     let auth_path = session_path.clone();
     let auth_cancel_action = auth_cancel.clone();
     ui.on_account_action(move |action| {
-        let Some(ui) = auth_weak.upgrade() else { return; };
+        let Some(ui) = auth_weak.upgrade() else {
+            return;
+        };
         if action == "cancel" {
             auth_cancel_action.store(true, std::sync::atomic::Ordering::Relaxed);
             ui.set_account_status("Cancelling sign-in...".into());
             return;
         }
-        if ui.get_launch_busy() || ui.get_auth_busy() { return; }
+        if ui.get_launch_busy() || ui.get_auth_busy() {
+            return;
+        }
         if action == "signout" {
             match andromeda_core::session_store::remove(&auth_path) {
-                Ok(()) => { ui.set_use_microsoft(false); ui.set_account_status("Local session removed. Microsoft consent is unchanged.".into()); }
+                Ok(()) => {
+                    ui.set_use_microsoft(false);
+                    ui.set_account_status(
+                        "Local session removed. Microsoft consent is unchanged.".into(),
+                    );
+                }
                 Err(e) => ui.set_account_status(e.to_string().into()),
             }
             return;
         }
-        if action != "signin" { return; }
+        if action != "signin" {
+            return;
+        }
         auth_cancel_action.store(false, std::sync::atomic::Ordering::Relaxed);
         ui.set_auth_busy(true);
-        ui.set_account_status("Requesting a code from Microsoft...".into());
-        let weak = auth_weak.clone(); let path = auth_path.clone(); let cancel = auth_cancel_action.clone();
+        ui.set_account_status("Opening the Microsoft sign-in window...".into());
+        let weak = auth_weak.clone();
+        let path = auth_path.clone();
+        let cancel = auth_cancel_action.clone();
         std::thread::spawn(move || {
             let result = (|| -> Result<String, andromeda_core::auth::AuthError> {
-                let http = andromeda_core::auth::Http::new()?;
-                let code = andromeda_core::auth::begin(&http)?;
-                let instructions = format!("Open {} and enter {}. Expires in {} minutes. Check that the page names your Kimberlite app before approving.", code.verification_uri, code.user_code, code.expires_in / 60);
-                weak.upgrade_in_event_loop(move |ui| ui.set_account_status(instructions.into())).map_err(|_| andromeda_core::auth::AuthError::Cancelled)?;
-                let session = andromeda_core::auth::finish(&http, &code, &cancel)?;
-                if cancel.load(std::sync::atomic::Ordering::Relaxed) { return Err(andromeda_core::auth::AuthError::Cancelled); }
+                tracing::info!("Sign-in worker entered");
+                let session = native_login::sign_in(&cancel)?;
+                if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Err(andromeda_core::auth::AuthError::Cancelled);
+                }
                 andromeda_core::session_store::save(&path, &session)?;
                 Ok(session.profile.name)
             })();
             let _ = weak.upgrade_in_event_loop(move |ui| {
                 ui.set_auth_busy(false);
                 match result {
-                    Ok(name) => { ui.set_use_microsoft(true); ui.set_account_status(format!("Signed in as {name}. Session protected for this Windows user.").into()); }
+                    Ok(name) => {
+                        ui.set_use_microsoft(true);
+                        ui.set_account_status(
+                            format!(
+                                "Signed in as {name}. Session protected for this Windows user."
+                            )
+                            .into(),
+                        );
+                    }
                     Err(e) => ui.set_account_status(e.to_string().into()),
                 }
             });
         });
     });
+    // Restore the protected account without opening the Microsoft page.
+    // Do not delete a saved session on transient network/refresh failures.
+    if session_path.is_file() {
+        ui.set_auth_busy(true);
+        ui.set_account_status("Restoring your protected Microsoft session...".into());
+        let weak = ui.as_weak();
+        let path = session_path.clone();
+        let cancel = auth_cancel.clone();
+        std::thread::spawn(move || {
+            let result = (|| {
+                let http = andromeda_core::auth::Http::new()?;
+                andromeda_core::session_store::refresh(&path, &http)
+            })();
+            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                ui.set_auth_busy(false);
+                match result {
+                    Ok(session) => {
+                        ui.set_use_microsoft(true);
+                        ui.set_account_status(format!("Signed in as {}. Protected session restored.", session.profile.name).into());
+                        tracing::info!("Protected Microsoft session restored");
+                    }
+                    Err(e) => {
+                        ui.set_use_microsoft(false);
+                        ui.set_account_status(format!("Could not restore your saved account: {e} Your protected session was kept. Sign in again or retry Microsoft Play.").into());
+                        tracing::warn!("Protected Microsoft session restore failed: {e}");
+                    }
+                }
+            });
+        });
+    }
     let instance_root = dir.join("instances");
     let instances = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     match andromeda_core::instances::list(&instance_root) {
@@ -290,6 +339,9 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     });
 
+    tracing::info!("Showing launcher window");
+    ui.show()?;
+    tracing::info!("Launcher shown, entering event loop");
     let result = ui.run();
     auth_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
     result

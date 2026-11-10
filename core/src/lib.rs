@@ -5,3 +5,5 @@ pub mod launch;
 pub mod session_store;
 pub mod settings;
 pub mod vanilla;
+
+pub mod pkce;
