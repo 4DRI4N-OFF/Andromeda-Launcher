@@ -12,10 +12,14 @@ const SCHEMA: u32 = 1;
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Loader {
     Fabric { version: String },
+    Quilt { version: String },
 }
 impl Loader {
     fn validate(&self) -> Result<()> {
         match self {
+            Self::Quilt { version } => {
+                crate::fabric::maven_path(&format!("org.quiltmc:quilt-loader:{version}"))?;
+            }
             Self::Fabric { version } => {
                 crate::fabric::maven_path(&format!("net.fabricmc:fabric-loader:{version}"))?;
             }

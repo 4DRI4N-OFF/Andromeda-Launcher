@@ -9,3 +9,5 @@ pub mod vanilla;
 pub mod fabric;
 pub mod fabric_install;
 pub mod pkce;
+pub mod quilt;
+pub mod quilt_install;

@@ -30,10 +30,10 @@ fn refresh_instances(
         format!(
             "{} [{}]",
             i.name,
-            if i.loader.is_some() {
-                "Fabric"
-            } else {
-                "Vanilla"
+            match i.loader {
+                Some(andromeda_core::instances::Loader::Fabric { .. }) => "Fabric",
+                Some(andromeda_core::instances::Loader::Quilt { .. }) => "Quilt",
+                None => "Vanilla",
             }
         )
         .into()
@@ -258,6 +258,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 match action.as_str() {
                     "create" => { andromeda_core::instances::create(&root, &name, &local_name, 2048)?; }
                     "createfabric" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Fabric { version: "0.20.1".into() }))?; }
+                    "createquilt" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Quilt { version: "0.30.2".into() }))?; }
                     "duplicate" => { let i = selected.ok_or("Select an instance, not the default profile")?; andromeda_core::instances::duplicate(&root, &i.id, &name)?; }
                     "trash" => { let i = selected.ok_or("The default profile cannot be trashed here")?; andromeda_core::instances::trash(&root, &i.id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = Some(i.id); }
                     "restore" => { let id = trash.lock().map_err(|_| "Instance lock unavailable")?.clone().ok_or("No instance to restore in this session")?; andromeda_core::instances::restore(&root, &id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = None; }
@@ -320,6 +321,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     Some(andromeda_core::instances::Loader::Fabric { version }) => {
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
                         andromeda_core::launch::prepare_fabric(
+                            &root,
+                            "1.21.11",
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
+                        )?
+                    }
+                    Some(andromeda_core::instances::Loader::Quilt { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_quilt(
                             &root,
                             "1.21.11",
                             &name,

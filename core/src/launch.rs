@@ -182,7 +182,38 @@ pub fn prepare_fabric(
         return Err("Microsoft session expired. Sign in again.".into());
     }
     let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
-    prepare_identity(root, version, name, memory_mb, game, session, Some(loader))
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some((false, loader)),
+    )
+}
+pub fn prepare_quilt(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    loader: &str,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some((true, loader)),
+    )
 }
 fn prepare_identity(
     root: &Path,
@@ -191,7 +222,7 @@ fn prepare_identity(
     memory_mb: u32,
     game: &Path,
     session: Option<&crate::auth::Session>,
-    fabric_loader: Option<&str>,
+    fabric_loader: Option<(bool, &str)>,
 ) -> Result<LaunchPlan> {
     if version != VERSION {
         return Err("Phase 2 currently supports installed vanilla 1.21.11 only".into());
@@ -232,8 +263,17 @@ fn prepare_identity(
     let natives = root.join("natives").join(version);
     fs::create_dir_all(&natives)?;
     let fabric = fabric_loader
-        .map(|loader| {
-            crate::fabric_install::install(&root.join("fabric-libraries"), version, loader)
+        .map(|(quilt, loader)| {
+            if quilt {
+                let q =
+                    crate::quilt_install::install(&root.join("quilt-libraries"), version, loader)?;
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: q.profile,
+                    libraries: q.libraries,
+                })
+            } else {
+                crate::fabric_install::install(&root.join("fabric-libraries"), version, loader)
+            }
         })
         .transpose()?;
     let mut classpath = fabric
