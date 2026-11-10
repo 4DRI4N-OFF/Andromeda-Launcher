@@ -36,7 +36,7 @@ Minecraft receives its access token as a normal Java launch argument. This does 
 ## Still required before merge
 
 - The owner's 06:17 "Si y no, aun no recuerda la sesion" answered a combined question about entering a world with Microsoft Play/skin and remembering the session. Record owner-reported game/account success, but do not substitute that answer for independent in-world or separate skin evidence.
-- Independently check Play with Microsoft in an isolated test world and return to ready; separately inspect the expected in-game skin.
+- Independently check Play with Microsoft in an isolated test world and return to ready; owner-reported skin was confirmed at 06:24 CET; an independent in-game inspection remains optional evidence, not an owner-report gap.
 - Reopen refresh now passes the two controlled launch checks above. Longer-term expiry/revocation behavior remains covered by synthetic tests rather than a timed live expiry test.
 - Check local sign-out and explicit offline-play/instance regressions.
 - Keep prior phase-1/intro proof and PR #5/#6/#7 merge gates unchanged. No auto-merge, release or public publication.
@@ -46,3 +46,7 @@ References checked:
 - https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow
 - https://learn.microsoft.com/en-us/entra/msal/dotnet/acquiring-tokens/using-web-browsers
 - https://learn.microsoft.com/en-us/entra/identity-platform/reply-url
+
+## Owner follow-up, November 10 at 06:24 CET
+
+The owner reported "la skin se ve" after Microsoft Play. Record this as owner-reported in-world skin confirmation. It is not an independent screenshot inspection. The stale startup helper telling him to install 1.21.11 first was replaced with neutral, accurate guidance: choose a profile and Play; installed files are verified before launch. Earlier merge gates remain unchanged.
