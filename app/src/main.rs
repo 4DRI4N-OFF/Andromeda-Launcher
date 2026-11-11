@@ -4,6 +4,7 @@
 )]
 
 mod intro;
+mod motion_ui;
 mod native_login;
 mod theme_ui;
 use andromeda_core::settings::Settings;
@@ -16,6 +17,15 @@ use std::{
 slint::include_modules!();
 
 fn data_dir() -> PathBuf {
+    // Opt-in portable sandbox for ready-to-open phase test builds only.
+    // The normal launcher has no marker and keeps its existing data directory.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(folder) = exe.parent() {
+            if folder.join(".andromeda-test").is_file() {
+                return folder.join("data");
+            }
+        }
+    }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workspace root")
@@ -58,6 +68,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let settings_path = dir.join("settings.json");
     let s = Settings::load(&settings_path);
     let ui = MainWindow::new()?;
+    let _motion_timer = motion_ui::install(&ui);
     tracing::info!("Launcher UI created");
     ui.set_reduce_animations(s.reduce_animations);
     ui.set_dark_mode(s.dark_mode);

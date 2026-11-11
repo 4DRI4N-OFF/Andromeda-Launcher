@@ -8,6 +8,8 @@ use slint::{
 };
 use std::{rc::Rc, time::Duration};
 slint::include_modules!();
+#[path = "../src/motion_ui.rs"]
+mod motion_ui;
 #[path = "../src/theme_ui.rs"]
 mod theme_ui;
 struct Offscreen(Rc<MinimalSoftwareWindow>);
@@ -52,6 +54,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(Offscreen(window.clone()))).unwrap();
     let ui = MainWindow::new()?;
+    let _motion_timer = motion_ui::install(&ui);
     ui.window().set_size(slint::PhysicalSize::new(1100, 760));
     ui.set_theme_choices(theme_ui::choices(&andromeda_core::themes::builtins()));
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(vec![
@@ -63,6 +66,7 @@ fn main() -> Result<(), slint::PlatformError> {
         "Custom packs: data/themes/*.json. Validated locally. No seasonal overlays in this phase."
             .into(),
     );
+    ui.set_reduce_animations(true);
     ui.set_settings_open(true);
     ui.set_appearance_open(true);
     let packs = andromeda_core::themes::builtins();
