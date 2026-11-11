@@ -91,35 +91,40 @@ fn main() -> Result<(), slint::PlatformError> {
             12 => pointer(&window, 700., 440., true),
             18 => pointer(&window, 700., 440., false),
             30 => {
-                pointer(&window, 300., 45., true);
-                pointer(&window, 300., 45., false);
-                assert!(ui.get_settings_open());
+                pointer(&window, 642., 69., true);
+                pointer(&window, 642., 69., false);
+                assert_eq!(ui.get_active_tab(), 3);
             }
             60 => {
                 pointer(&window, 120., 340., true);
                 pointer(&window, 120., 340., false);
                 assert!(ui.get_appearance_open());
             }
-            75 => pointer(&window, 550., 350., true),
-            81 => pointer(&window, 550., 350., false),
+            75 => pointer(&window, 700., 490., true),
+            81 => pointer(&window, 700., 490., false),
             86 => {
+                ui.set_active_tab(0);
                 ui.set_settings_open(false);
                 ui.set_appearance_open(false);
             }
             90 => {
+                ui.set_active_tab(3);
                 ui.set_settings_open(true);
             } // rapid retarget while moving
             93 => {
                 ui.set_reduce_animations(true);
             }
             96 => {
+                ui.set_active_tab(0);
                 ui.set_settings_open(false);
             }
             108 => {
+                ui.set_active_tab(3);
                 ui.set_appearance_open(true);
             }
             120 => {
                 ui.set_reduce_animations(false);
+                ui.set_active_tab(0);
                 ui.set_settings_open(false);
                 ui.set_appearance_open(false);
             }
@@ -131,10 +136,10 @@ fn main() -> Result<(), slint::PlatformError> {
             nav_peak = nav_peak.max(ui.get_nav_position());
         }
         if frame == 54 {
-            assert!((ui.get_nav_position() - 1.).abs() < 0.001);
+            assert!((ui.get_nav_position() - 3.).abs() < 0.001);
         }
         if frame == 94 {
-            assert_eq!(ui.get_nav_position(), 1.);
+            assert_eq!(ui.get_nav_position(), 3.);
             assert_eq!(ui.get_page_phase(), 1.);
         }
         if frame == 97 {
@@ -143,7 +148,7 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     }
     assert!(
-        nav_peak > 1.01,
+        nav_peak > 3.01,
         "nav spring must overshoot rather than interpolate linearly"
     );
     assert!((ui.get_nav_position()).abs() < 0.001);
@@ -151,6 +156,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.window().set_size(slint::PhysicalSize::new(860, 620));
     for p in &packs {
         theme_ui::apply(&ui, p, false, &theme_timer);
+        ui.set_active_tab(3);
         ui.set_appearance_open(true);
         capture(&window, &format!("motion-minimum-{}.bmp", p.id), 860, 620);
     }

@@ -250,8 +250,8 @@ component ProfileRow inherits Rectangle {
     in property <bool> dark: true;
     callback clicked;
 
-    height: 42px;
-    border-radius: 9px;
+    height: 64px;
+    border-radius: 16px;
     border-width: 1px;
     border-color: selected ? ThemePalette.list-accent : transparent;
     background: selected
@@ -266,11 +266,12 @@ component ProfileRow inherits Rectangle {
         }
     }
 
+    Rectangle { x: 13px; y: 12px; width: 40px; height: 40px; border-radius: 12px; background: ThemePalette.accent; }
     Text {
         font-family: ThemePalette.body-font;
-        x: 14px + (1 - root.entered) * 22px + press.value * 3px;
+        x: 66px + (1 - root.entered) * 22px + press.value * 3px;
         y: press.value * 1px;
-        width: root.width - 26px;
+        width: root.width - 80px;
         height: root.height;
         vertical-alignment: center;
         overflow: elide;
@@ -281,21 +282,24 @@ component ProfileRow inherits Rectangle {
     }
 }
 
+component GlassPanel inherits Rectangle {
+    border-radius: 27px; border-width: 1px; border-color: ThemePalette.border;
+    background: ThemePalette.panel; clip: true;
+
+}
 component SectionRow inherits Rectangle {
     in property <string> label;
     in property <string> value;
     in property <bool> selected;
     in property <float> entered: 1;
     callback clicked;
-    height: 76px; border-radius: 12px; clip: true;
+    height: root.width < 240px ? 66px : 46px; border-radius: 14px; clip: true;
     background: selected ? ThemePalette.panel-light : hit.has-hover ? ThemePalette.field : transparent;
     border-width: 1px; border-color: selected ? ThemePalette.nav-accent : transparent;
     opacity: min(1, max(0, entered));
     press := SpringValue { target: hit.pressed ? 1 : 0; }
-    VerticalLayout { padding-left: 12px + press.value * 2px; padding-right: 12px; padding-top: 12px; padding-bottom: 12px; spacing: 6px;
-        Text { text: root.label; font-family: ThemePalette.body-font; font-size: 13px; font-weight: 700; color: ThemePalette.text-color; }
-        Text { text: root.value; overflow: elide; font-family: ThemePalette.body-font; font-size: 10px; color: ThemePalette.muted; }
-    }
+    Text { x: 12px + press.value * 2px; y: 0px; width: root.width < 240px ? parent.width - 24px : parent.width * 0.53; height: root.width < 240px ? 32px : parent.height; text: root.label; overflow: elide; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 14px; font-weight: 600; color: ThemePalette.text-color; }
+    Text { x: root.width < 240px ? 12px : parent.width * 0.55; y: root.width < 240px ? 29px : 0px; width: root.width < 240px ? parent.width - 24px : parent.width * 0.45 - 12px; height: root.width < 240px ? 28px : parent.height; text: root.value; overflow: elide; horizontal-alignment: root.width < 240px ? left : right; vertical-alignment: center; font-family: ThemePalette.value-font; font-size: 10px; color: ThemePalette.muted; }
     hit := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
 }
 component ThemeRow inherits Rectangle {
@@ -326,8 +330,8 @@ component ThemeRow inherits Rectangle {
 export component MainWindow inherits Window {
     title: @tr("Andromeda Launcher");
     icon: @image-url("logo-mark.png");
-    preferred-width: 1000px;
-    preferred-height: 700px;
+    preferred-width: 1600px;
+    preferred-height: 900px;
     min-width: 860px;
     min-height: 620px;
 
@@ -372,6 +376,15 @@ export component MainWindow inherits Window {
         ? instance-names[instance-index]
         : "";
 
+    in-out property <int> active-tab: 0;
+    changed active-tab => {
+        root.settings-open = root.active-tab >= 3;
+        root.appearance-open = false;
+        if root.active-tab == 4 { root.settings-section = 1; }
+        if root.active-tab == 3 { root.settings-section = 2; }
+        root.page-start = InteractionMotion.clock;
+    }
+    property <length> shell-left: root.width < 1100px ? 214px : 402px;
     in-out property <int> settings-section: 0;
     changed appearance-open => { if root.appearance-open { root.settings-open = true; root.settings-section = 2; } }
     changed settings-section => { root.appearance-open = root.settings-section == 2 && root.settings-open; root.page-start = InteractionMotion.clock; }
@@ -387,115 +400,65 @@ export component MainWindow inherits Window {
     property <bool> motion-reduced: reduce-animations;
     changed motion-reduced => { InteractionMotion.reduced = root.reduce-animations; root.page-start = InteractionMotion.clock - 1; }
     background: @linear-gradient(135deg, ThemePalette.bg, ThemePalette.bg-end);
-    // Decorative geometry is shared and never changes hit targets.
-    for star[i] in [0.07, 0.17, 0.28, 0.39, 0.53, 0.66, 0.78, 0.91] : Rectangle {
-        x: root.width * star; y: root.height * (0.08 + mod(i * 0.137, 0.85));
-        width: ThemePalette.background-style == "dawn" ? 48px : 2px;
-        height: self.width; border-radius: self.width / 2;
-        border-width: ThemePalette.background-style == "dawn" ? 1px : 0px;
-        border-color: ThemePalette.accent;
-        background: ThemePalette.background-style == "dawn" ? transparent : ThemePalette.accent;
-        opacity: ThemePalette.background-style == "dawn" ? 0.08 : 0.3;
+    Image { width: parent.width; height: parent.height;
+        source: ThemePalette.background-style == "dawn" ? @image-url("shell/dawn.png") : ThemePalette.background-style == "constellation" ? @image-url("shell/constellation.png") : @image-url("shell/galaxy.png");
+        image-fit: cover;
     }
-    VerticalLayout {
-        padding: 28px;
-        spacing: 18px;
-
-        // ---------------- header ----------------
-        HorizontalLayout {
-            height: 46px;
-            spacing: 12px;
-
-            Image {
-                width: 32px;
-                height: 32px;
-                source: @image-url("logo-mark.png");
-                image-fit: contain;
-            }
-
-            Text {
-                font-family: ThemePalette.body-font;
-                text: @tr("Andromeda");
-                font-size: 18px;
-                font-weight: 800;
-                vertical-alignment: center;
-                color: root.c-text;
-            }
-
+    Rectangle {
+        width: 100%; height: 100%;
+        Rectangle {
+            x: 36px; y: 30px; width: parent.width - 72px; height: 107px;
+            Text { x: 4px; y: 14px; text: "ANDROMEDA"; font-family: ThemePalette.background-style == "dawn" ? "Fraunces" : "Inter"; font-size: 13px; font-weight: 800; letter-spacing: 5px; color: ThemePalette.text-color; }
             Rectangle {
-                width: 154px; height: 34px;
-                border-radius: 17px; background: ThemePalette.field;
-                pill := SpringValue { target: root.screen-index; }
-                Rectangle { x: 3px + max(-0.025, min(1.025, pill.value)) * 74px; y: 3px; width: 74px; height: 28px; border-radius: 14px; background: ThemePalette.nav-accent; }
-                for title[i] in ["Play", "Settings"] : Rectangle {
-                    x: 3px + i * 74px; width: 74px; height: 34px;
-                    Text { width: 100%; height: 100%; text: title; font-family: ThemePalette.body-font; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; color: abs(pill.value - i) < 0.4 ? ThemePalette.on-accent : ThemePalette.text-color; }
-                    TouchArea { mouse-cursor: pointer; clicked => { root.settings-open = i != 0; root.appearance-open = i != 0 && root.settings-section == 2; } }
+                x: (parent.width - self.width) / 2; y: 0px; width: 486px; height: 78px;
+                border-radius: 39px; border-width: 1px; border-color: ThemePalette.border;
+                background: ThemePalette.panel;
+                pill := SpringValue { target: root.active-tab; }
+                Rectangle { x: 17px + max(-0.025,min(4.025,pill.value)) * 92px; y: 11px; width: 84px; height: 56px; border-radius: 18px;
+                    background: ThemePalette.nav-accent;
+                    Image { width: 84px; height: 56px; image-fit: contain;
+                        visible: root.selected-theme == "horizonte" || root.selected-theme == "alba" || root.selected-theme == "cartografo";
+                        source: root.selected-theme == "alba" ? @image-url("shell/nav-alba.svg") : root.selected-theme == "cartografo" ? @image-url("shell/nav-cartografo.svg") : @image-url("shell/nav-horizonte.svg");
+                    }
+                    drop-shadow-color: ThemePalette.accent.with-alpha(0.22); drop-shadow-blur: 24px; drop-shadow-offset-y: 5px;
+                }
+                for i in 5 : Rectangle {
+                    x: 17px + i * 92px; width: 84px; height: 78px;
+                    Image { x: 30px; y: 27px; width: 24px; height: 24px; image-fit: contain;
+                        source: i == 0 ? @image-url("shell/play.svg") : i == 1 ? @image-url("shell/instances.svg") : i == 2 ? @image-url("shell/mods.svg") : i == 3 ? @image-url("shell/settings.svg") : @image-url("shell/account.svg");
+                        colorize: abs(pill.value - i) < 0.4 ? ThemePalette.on-accent : ThemePalette.muted;
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.active-tab = i; } }
                 }
             }
-
-            Rectangle { horizontal-stretch: 1; }
-
-            Rectangle {
-                width: 168px;
-                height: 30px;
-                border-radius: 15px;
-                border-width: 1px;
-                border-color: root.c-border;
-                background: root.c-panel;
-
-                Rectangle {
-                    x: 12px;
-                    y: 11px;
-                    width: 7px;
-                    height: 7px;
-                    border-radius: 4px;
-                    background: root.use-microsoft ? #57e2c8 : #5b678f;
-                }
-                Text {
-                    font-family: ThemePalette.body-font;
-                    x: 26px;
-                    y: 0px;
-                    width: 130px;
-                    height: parent.height;
-                    vertical-alignment: center;
-                    overflow: elide;
-                    text: root.use-microsoft ? @tr("Microsoft account") : @tr("Offline profile");
-                    font-size: 11.5px;
-                    color: root.c-text;
-                }
+            Text { y: 92px; width: parent.width; text: root.active-tab == 0 ? "PLAY" : root.active-tab == 1 ? "INSTANCES" : root.active-tab == 2 ? "MODS" : root.active-tab == 3 ? "SETTINGS" : "ACCOUNT";
+                horizontal-alignment: center; font-family: "Inter"; font-size: 11px; font-weight: 700; letter-spacing: 5px; color: ThemePalette.muted;
             }
-
-
         }
 
         // ---------------- play ----------------
         // `visible: false` still takes up space inside a layout, so the inactive
         // screen is removed with an `if` instead of being hidden.
-        if !root.settings-open && !root.appearance-open : Rectangle {
-            vertical-stretch: 1;
+        if root.active-tab < 2 : Rectangle {
+            x: 36px; y: 160px; width: parent.width - 72px; height: parent.height - 196px;
 
             Rectangle { width: parent.width; height: parent.height; y: (1 - root.page-progress) * 24px; opacity: 0.35 + 0.65 * max(0, min(1, root.page-progress));
             HorizontalLayout {
             width: 100%;
             height: 100%;
-            spacing: 14px;
+            spacing: 24px;
 
             // profiles
-            Rectangle {
-                width: 320px;
-                border-radius: 20px;
-                border-width: 1px;
-                border-color: root.c-border;
-                background: root.c-panel;
+            GlassPanel {
+                width: root.shell-left;
 
                 VerticalLayout {
-                    padding: 16px;
-                    spacing: 10px;
+                    padding: 22px;
+                    spacing: 12px;
 
                     Text {
                         font-family: ThemePalette.body-font;
-                        text: @tr("Profiles");
+                        text: @tr("INSTANCES");
                         font-size: 11px;
                         font-weight: 700;
                         letter-spacing: 0.6px;
@@ -526,14 +489,14 @@ export component MainWindow inherits Window {
                         dark: root.dark-mode;
                         enabled: !root.busy;
                         clicked => {
-                            root.settings-section = 0; root.appearance-open = false; root.settings-open = true;
+                            root.active-tab = 3; root.settings-section = 0; root.appearance-open = false; root.settings-open = true;
                         }
                     }
                 }
             }
 
-            // play: one action, no card border
-            Rectangle {
+            // Existing launch detail remains inside the reference shell in this checkpoint.
+            GlassPanel {
                 horizontal-stretch: 1;
                 max-width: 100000px;
 
@@ -597,18 +560,31 @@ export component MainWindow inherits Window {
                     }
 }
 
+        if root.active-tab == 2 : Rectangle {
+            x: 36px; y: 160px; width: parent.width - 72px; height: parent.height - 196px;
+            HorizontalLayout { width: 100%; height: 100%; spacing: 24px;
+                GlassPanel { width: root.shell-left;
+                    Text { x: 28px; y: 28px; text: "MODS"; font-size: 11px; letter-spacing: 2px; font-family: ThemePalette.value-font; color: ThemePalette.muted; }
+                }
+                GlassPanel { horizontal-stretch: 1;
+                    VerticalLayout { padding: 40px; alignment: start; spacing: 20px;
+                        Text { text: "Mods"; font-family: ThemePalette.display-font; font-size: 42px; color: ThemePalette.text-color; }
+                        Text { text: "Visual shell checkpoint. Mod browsing and editing are not implemented here. No mod inventory or activity is being claimed."; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 14px; color: ThemePalette.muted; }
+                    }
+                }
+            }
+        }
+
         // Grouped settings: one section list with values, one explanation/editor.
-        if root.settings-open || root.appearance-open : Rectangle {
-            vertical-stretch: 1;
+        if root.active-tab >= 3 : Rectangle {
+            x: 36px; y: 160px; width: parent.width - 72px; height: parent.height - 196px;
             Rectangle { width: parent.width; height: parent.height; y: (1 - root.page-progress) * 18px; opacity: 0.35 + 0.65 * max(0, min(1, root.page-progress));
                 HorizontalLayout {
-                    width: 100%; height: 100%; spacing: 18px;
-                    Rectangle {
-                        width: root.width < 940px ? 214px : 252px;
-                        border-radius: 22px; background: ThemePalette.panel;
-                        border-width: 1px; border-color: ThemePalette.border;
-                        VerticalLayout { padding: 16px; spacing: 10px;
-                            Text { text: "SETTINGS"; font-family: ThemePalette.body-font; font-size: 11px; font-weight: 700; letter-spacing: 2px; color: ThemePalette.muted; }
+                    width: 100%; height: 100%; spacing: 24px;
+                    GlassPanel {
+                        width: root.shell-left;
+                        VerticalLayout { padding: 24px; spacing: 8px;
+                            Text { text: root.active-tab == 4 ? "ACCOUNT" : "SETTINGS"; font-family: ThemePalette.value-font; font-size: 11px; font-weight: 700; letter-spacing: 2px; color: ThemePalette.muted; }
                             for title[i] in ["Profiles", "Account & player", "Appearance"] : SectionRow {
                                 label: title;
                                 value: i == 0 ? root.current-profile : i == 1 ? (root.use-microsoft ? "Microsoft for Play" : "Offline / " + root.local-name) : root.selected-theme + (root.reduce-animations ? " / reduced motion" : " / animated");
@@ -617,16 +593,16 @@ export component MainWindow inherits Window {
                                 clicked => { root.settings-section = i; root.appearance-open = i == 2; }
                             }
                             Rectangle { vertical-stretch: 1; }
-                            Text { text: "One place for each setting.\nYour profiles stay where they are."; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 11px; color: ThemePalette.muted; }
-                            Text { text: "ANDROMEDA / with Instinct"; font-family: ThemePalette.body-font; font-size: 10px; color: ThemePalette.muted; }
+
+                            Text { text: "ANDROMEDA / VISUAL CHECKPOINT"; font-family: ThemePalette.body-font; font-size: 10px; color: ThemePalette.muted; }
                         }
                     }
-                    Rectangle {
-                        horizontal-stretch: 1; border-radius: 22px; background: ThemePalette.panel;
-                        border-width: 1px; border-color: ThemePalette.border;
-                        ScrollView { x: 20px; y: 20px; width: parent.width - 40px; height: parent.height - 40px;
-                            VerticalLayout { spacing: 14px; alignment: start;
-                                Text { text: root.settings-section == 0 ? "Profiles" : root.settings-section == 1 ? "Account & player" : "Appearance"; font-family: ThemePalette.display-font; opacity: ThemePalette.display-opacity; font-size: 26px; font-weight: 800; color: ThemePalette.text-color; }
+                    GlassPanel {
+                        horizontal-stretch: 1;
+                        ScrollView { x: root.width < 1100px ? 22px : 44px; y: root.width < 1100px ? 22px : 40px; width: parent.width - (root.width < 1100px ? 44px : 88px); height: parent.height - (root.width < 1100px ? 44px : 80px);
+                            VerticalLayout { spacing: 24px; alignment: start;
+                                Text { text: "SETTINGS / " + (root.settings-section == 0 ? "PROFILES" : root.settings-section == 1 ? "PLAYER" : "APPEARANCE"); font-family: ThemePalette.value-font; font-size: 11px; letter-spacing: 3px; color: ThemePalette.accent; }
+                                Text { text: root.settings-section == 0 ? "Profiles" : root.settings-section == 1 ? "Account & player" : "Appearance"; font-family: ThemePalette.display-font; opacity: ThemePalette.display-opacity; font-size: root.width < 1000px ? 28px : 48px; font-weight: 800; color: ThemePalette.text-color; }
                                 Text { text: root.settings-section == 0 ? "Create a profile or manage the one selected in Play. Each profile keeps its own game files." : root.settings-section == 1 ? "Choose your Play identity. Microsoft sign-in and the offline player name belong together here." : "Choose a theme and how much motion you want. The same layout and settings work across all themes."; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
                                 if root.settings-section == 0 : VerticalLayout {
                                     vertical-stretch: 0; alignment: start; spacing: 12px;

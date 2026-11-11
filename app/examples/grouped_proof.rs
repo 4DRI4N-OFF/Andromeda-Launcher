@@ -60,7 +60,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
     slint::platform::set_platform(Box::new(Offscreen(window.clone()))).unwrap();
     let ui = MainWindow::new()?;
-    ui.window().set_size(slint::PhysicalSize::new(1100, 760));
+    ui.window().set_size(slint::PhysicalSize::new(1600, 900));
     let timer = motion_ui::install(&ui);
     timer.stop();
     let theme_timer = Rc::new(slint::Timer::default());
@@ -75,18 +75,19 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.set_theme_status("Custom packs: data/themes/*.json. Loaded on restart.".into());
     ui.set_reduce_animations(true);
     ui.show()?;
-    capture(&window, "grouped-play.bmp", 1100, 760);
+    capture(&window, "grouped-play.bmp", 1600, 900);
+    ui.set_active_tab(3);
     ui.set_settings_open(true);
     for i in 0..3 {
         ui.set_settings_section(i);
-        capture(&window, &format!("grouped-section-{i}.bmp"), 1100, 760);
+        capture(&window, &format!("grouped-section-{i}.bmp"), 1600, 900);
     }
     for p in &packs {
         theme_ui::apply(&ui, p, false, &theme_timer);
         ui.window().set_size(slint::PhysicalSize::new(860, 620));
         capture(&window, &format!("grouped-minimum-{}.bmp", p.id), 860, 620);
     }
-    ui.window().set_size(slint::PhysicalSize::new(1100, 760));
+    ui.window().set_size(slint::PhysicalSize::new(1600, 900));
     theme_ui::apply(&ui, &packs[0], false, &theme_timer);
     let path = std::env::temp_dir().join(format!("grouped-settings-{}.json", std::process::id()));
     theme_ui::save_selection(&ui, &path).unwrap();
@@ -98,29 +99,29 @@ fn main() -> Result<(), slint::PlatformError> {
         *result.borrow_mut() = id.to_string();
     });
     // Actual pointer routes select sections and call the same callbacks as production.
-    for (y, expected) in [(165., 0), (250., 1), (340., 2)] {
+    for (y, expected) in [(230., 0), (286., 1), (340., 2)] {
         pointer(&window, 120., y, true);
         pointer(&window, 120., y, false);
-        capture(&window, "grouped-pointer.bmp", 1100, 760);
+        capture(&window, "grouped-pointer.bmp", 1600, 900);
         assert_eq!(ui.get_settings_section(), expected);
     }
-    pointer(&window, 650., 320., true);
-    pointer(&window, 650., 320., false);
+    pointer(&window, 900., 490., true);
+    pointer(&window, 900., 490., false);
     assert_eq!(selected.borrow().as_str(), "alba");
     let actions = Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
     let result = actions.clone();
     ui.on_account_action(move |action| result.borrow_mut().push(action.to_string()));
     ui.set_settings_section(1);
-    capture(&window, "grouped-account-before-click.bmp", 1100, 760);
+    capture(&window, "grouped-account-before-click.bmp", 1600, 900);
     // Sign-in/cancel/sign-out are callback-only spies, no auth window is opened.
-    pointer(&window, 430., 275., true);
-    pointer(&window, 430., 275., false);
+    pointer(&window, 670., 432., true);
+    pointer(&window, 670., 432., false);
     ui.set_auth_busy(true);
-    pointer(&window, 660., 275., true);
-    pointer(&window, 660., 275., false);
+    pointer(&window, 1020., 432., true);
+    pointer(&window, 1020., 432., false);
     ui.set_auth_busy(false);
-    pointer(&window, 900., 275., true);
-    pointer(&window, 900., 275., false);
+    pointer(&window, 1360., 432., true);
+    pointer(&window, 1360., 432., false);
     assert_eq!(&*actions.borrow(), &["signin", "cancel", "signout"]);
     ui.set_instance_index(1);
     ui.set_can_restore(true);
@@ -128,14 +129,14 @@ fn main() -> Result<(), slint::PlatformError> {
     let actions = Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
     let result = actions.clone();
     ui.on_manage_instance(move |action, _| result.borrow_mut().push(action.to_string()));
-    capture(&window, "grouped-profiles-before-click.bmp", 1100, 760);
-    for x in [380., 530., 680., 830., 980.] {
-        pointer(&window, x, 274., true);
-        pointer(&window, x, 274., false);
+    capture(&window, "grouped-profiles-before-click.bmp", 1600, 900);
+    for x in [600., 800., 1000., 1200., 1400.] {
+        pointer(&window, x, 447., true);
+        pointer(&window, x, 447., false);
     }
-    for x in [430., 680., 930.] {
-        pointer(&window, x, 408., true);
-        pointer(&window, x, 408., false);
+    for x in [670., 1020., 1370.] {
+        pointer(&window, x, 582., true);
+        pointer(&window, x, 582., false);
     }
     assert_eq!(
         &*actions.borrow(),
@@ -152,23 +153,23 @@ fn main() -> Result<(), slint::PlatformError> {
     );
     ui.set_auth_busy(true);
     let count = actions.borrow().len();
-    pointer(&window, 380., 274., true);
-    pointer(&window, 380., 274., false);
+    pointer(&window, 600., 447., true);
+    pointer(&window, 600., 447., false);
     assert_eq!(actions.borrow().len(), count);
     ui.set_auth_busy(false);
     ui.set_settings_section(2);
-    capture(&window, "grouped-before-motion-toggle.bmp", 1100, 760);
-    pointer(&window, 1020., 478., true);
-    pointer(&window, 1020., 478., false);
+    capture(&window, "grouped-before-motion-toggle.bmp", 1600, 900);
+    pointer(&window, 1500., 655., true);
+    pointer(&window, 1500., 655., false);
     assert!(!ui.get_reduce_animations());
-    pointer(&window, 1020., 478., true);
-    pointer(&window, 1020., 478., false);
+    pointer(&window, 1500., 655., true);
+    pointer(&window, 1500., 655., false);
     assert!(ui.get_reduce_animations());
     // Identity toggle remains local state, never a sign-in or launch.
     ui.set_settings_section(1);
-    capture(&window, "grouped-before-identity-toggle.bmp", 1100, 760);
-    pointer(&window, 1020., 303., true);
-    pointer(&window, 1020., 303., false);
+    capture(&window, "grouped-before-identity-toggle.bmp", 1600, 900);
+    pointer(&window, 1500., 477., true);
+    pointer(&window, 1500., 477., false);
     assert!(ui.get_use_microsoft());
     ui.set_settings_section(0);
     ui.window().set_size(slint::PhysicalSize::new(860, 620));
