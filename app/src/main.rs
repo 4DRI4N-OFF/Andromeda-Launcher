@@ -7,7 +7,11 @@
 static TABLER_LICENSE: [u8; 1073] = *include_bytes!("../ui/tabler/LICENSE");
 
 
-mod intro;
+mod startup;
+mod startup_gate;
+mod startup_data;
+mod startup_cover;
+mod startup_runtime;
 mod motion_ui;
 mod native_login;
 mod theme_ui;
@@ -16,7 +20,6 @@ use slint::ComponentHandle;
 use std::{
     path::PathBuf,
     rc::Rc,
-    time::{Duration, Instant},
 };
 slint::include_modules!();
 
@@ -82,26 +85,18 @@ fn refresh_instances(
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(labels)));
     ui.set_instance_index(0);
 }
-fn main() -> Result<(), slint::PlatformError> {
-    let dir = data_dir();
-    let _ = std::fs::create_dir_all(dir.join("logs"));
-    let appender = tracing_appender::rolling::daily(dir.join("logs"), "andromeda.log");
-    let (writer, _guard) = tracing_appender::non_blocking(appender);
-    tracing_subscriber::fmt()
-        .with_writer(writer)
-        .with_ansi(false)
-        .init();
-    tracing::info!("Andromeda starting");
+struct PreparedMain { ui: MainWindow, _motion_timer: Rc<slint::Timer>, auth_cancel: std::sync::Arc<std::sync::atomic::AtomicBool> }
+fn main() -> Result<(), slint::PlatformError> {startup_runtime::run(data_dir())}
+fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<PreparedMain, slint::PlatformError> {
     let settings_path = dir.join("settings.json");
-    let s = Settings::load(&settings_path);
+    let s = prepared.settings;
     let ui = MainWindow::new()?;
     let _motion_timer = motion_ui::install(&ui);
     tracing::info!("Launcher UI created");
     ui.set_reduce_animations(s.reduce_animations);
     ui.set_dark_mode(s.dark_mode);
-    let mut packs = andromeda_core::themes::builtins();
-    let (custom, errors) = andromeda_core::themes::load_custom(&dir.join("themes"));
-    packs.extend(custom);
+    let packs = prepared.themes;
+    let errors = prepared.warnings;
     for error in &errors {
         tracing::warn!("Theme rejected: {error}");
     }
@@ -134,49 +129,6 @@ fn main() -> Result<(), slint::PlatformError> {
             );
         }
     });
-    let timer = Rc::new(slint::Timer::default());
-    if intro::should_play(s.reduce_animations) {
-        match intro::decode(intro::FRAMES[0]) {
-            Ok(image) => {
-                ui.set_intro_frame(image);
-                ui.set_intro_visible(true);
-                let weak = ui.as_weak();
-                let timer_weak = Rc::downgrade(&timer);
-                let start = Instant::now();
-                timer.start(
-                    slint::TimerMode::Repeated,
-                    Duration::from_millis(33),
-                    move || {
-                        let Some(ui) = weak.upgrade() else {
-                            if let Some(t) = timer_weak.upgrade() {
-                                t.stop();
-                            }
-                            return;
-                        };
-                        let frame = (start.elapsed().as_secs_f64() * 30.0) as usize;
-                        if !ui.get_intro_visible() || frame >= intro::FRAMES.len() {
-                            ui.set_intro_visible(false);
-                            if let Some(t) = timer_weak.upgrade() {
-                                t.stop();
-                            }
-                            return;
-                        }
-                        match intro::decode(intro::FRAMES[frame]) {
-                            Ok(image) => ui.set_intro_frame(image),
-                            Err(e) => {
-                                tracing::warn!("Intro frame failed: {e}");
-                                ui.set_intro_visible(false);
-                                if let Some(t) = timer_weak.upgrade() {
-                                    t.stop();
-                                }
-                            }
-                        }
-                    },
-                );
-            }
-            Err(e) => tracing::warn!("Intro unavailable, opening launcher: {e}"),
-        }
-    }
     let weak = ui.as_weak();
     ui.on_settings_changed(move || {
         if let Some(ui) = weak.upgrade() {
@@ -259,7 +211,7 @@ fn main() -> Result<(), slint::PlatformError> {
     });
     // Restore the protected account without opening the Microsoft page.
     // Do not delete a saved session on transient network/refresh failures.
-    if session_path.is_file() {
+    if prepared.has_saved_session {
         ui.set_auth_busy(true);
         ui.set_account_status("Restoring your protected Microsoft session...".into());
         let weak = ui.as_weak();
@@ -292,10 +244,7 @@ fn main() -> Result<(), slint::PlatformError> {
     }
     let instance_root = dir.join("instances");
     let instances = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-    match andromeda_core::instances::list(&instance_root) {
-        Ok(items) => refresh_instances(&ui, &instances, items),
-        Err(e) => ui.set_launch_status(format!("Could not read instances: {e}").into()),
-    }
+    refresh_instances(&ui, &instances, prepared.instances);
     let last_trash = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
     let change_weak = ui.as_weak();
     let change_instances = instances.clone();
@@ -494,10 +443,5 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     });
 
-    tracing::info!("Showing launcher window");
-    ui.show()?;
-    tracing::info!("Launcher shown, entering event loop");
-    let result = ui.run();
-    auth_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-    result
+    Ok(PreparedMain {ui,_motion_timer,auth_cancel})
 }

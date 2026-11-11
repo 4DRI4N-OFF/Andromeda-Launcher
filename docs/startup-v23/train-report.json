@@ -1,0 +1,21 @@
+{
+  "frames": 126,
+  "planet_exact_v17": true,
+  "common_translation_error_max": "<1e-9px",
+  "fixed_final_sizes": true,
+  "final_exact_v17": true,
+  "all_begin_hidden": true,
+  "all_partial_emergence": true,
+  "pair_intersections": 0,
+  "first_visible_frames": [
+    72,
+    67,
+    63,
+    60,
+    57,
+    52,
+    50,
+    48,
+    44
+  ]
+}
