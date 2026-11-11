@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "cartografo",
+  "name": "Cart\u00f3grafo",
+  "description": "A warm observatory, bronze and constellations.",
+  "dark": true,
+  "colors": {
+    "background": "#161210",
+    "background_end": "#261b12",
+    "panel": "#302315eb",
+    "panel_light": "#49351feb",
+    "border": "#f2c0783d",
+    "text": "#f3e9d8",
+    "muted": "#b8ac96",
+    "accent": "#f2c078",
+    "accent_end": "#d98f3d",
+    "on_accent": "#271b0a",
+    "field": "#21190f",
+    "danger": "#ffa58b"
+  },
+  "fonts": {
+    "body": "Inter",
+    "display": "Sora",
+    "values": "JetBrains Mono"
+  },
+  "background": "constellation"
+}
