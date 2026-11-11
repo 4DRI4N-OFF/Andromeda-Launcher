@@ -12,6 +12,7 @@ mod startup_gate;
 mod startup_data;
 mod startup_cover;
 mod startup_runtime;
+mod startup_placement;
 mod motion_ui;
 mod native_login;
 mod theme_ui;

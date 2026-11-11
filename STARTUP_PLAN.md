@@ -12,18 +12,18 @@ The accepted intro is v23, the rigid letter train, approved on 2026-11-11. The v
 
 ## Implementation
 
-`startup_runtime.rs` opens a small borderless topmost splash, starts the event loop, and dispatches local settings/themes/instance preparation to a worker. The spinner reflects pending local preparation, not a made-up progress percentage. The protected session's presence is checked, but no token is read or refreshed by the startup worker. The existing independent account restoration remains in main UI preparation and is not a readiness gate.
+`startup_runtime.rs` opens a small borderless topmost splash, starts the event loop, and dispatches local settings/themes/instance preparation to a worker. The moving icon reflects pending local preparation, not a made-up progress percentage. The protected session's presence is checked, but no token is read or refreshed by the startup worker. The existing independent account restoration remains in main UI preparation and is not a readiness gate.
 
-The intro starts only after local data and main UI preparation, finishing the current real loading lap at its original pose first (at most1.333seconds). The old QOI intro is no longer called. Startup state and attempt tokens reject late callbacks after close or retry. Local preparation has a60-second timeout; first main render has an8-second timeout. Failure has explicit Retry and Close controls. Logging setup failure is handled as a visible error instead of a panic.
+The intro starts only after local data and main UI preparation, finishing the current icon-motion cycle at its original pose first (at most1.333seconds). The old QOI intro is no longer called. Startup state and attempt tokens reject late callbacks after close or retry. Local preparation has a60-second timeout; first main render has an8-second timeout. Failure has explicit Retry and Close controls. Logging setup failure is handled as a visible error instead of a panic.
 
-Slint Paths draw the moving logo and round-cap loader ribbon. A static violet backdrop and a sampled outer-contour cover texture implement the original occlusion without dark patches. These are not prerecorded animation frames. Asset generation is reproducible with `scripts/generate_startup_assets.py`.
+Slint Paths draw the moving logo. A static violet backdrop and a sampled outer-contour cover texture implement the original occlusion without dark patches. These are not prerecorded animation frames. Asset generation is reproducible with `scripts/generate_startup_assets.py`.
 
 The main window has its header copy hidden while the final logo overlay is aligned to the splash in physical screen coordinates and converted by the main window's current scale factor. Transfer waits for `AfterRendering`, never just `show()` or a fixed delay. Position corrections require another rendered frame before hiding the splash. The overlay moves to the live header slot in0.55seconds, blending white into the theme's logo color. Reduced motion skips travel but still waits for an actual main frame. The same Path component stays at the destination, avoiding a final SVG/Path rasterization swap. The full wordmark remains present at860px; it is no longer silently replaced by a planet.
 
 ## Reproducible checks
 
 - `cargo check -p andromeda-app`
-- `cargo test --workspace`:86tests passed (17app,69core).
+- `cargo test --workspace`:91tests passed (22app,69core).
 - `cargo test -p andromeda-app --example startup_proof`:3tests, including comparison of every one of the126native states to accepted v23 within1e-8.
 - `cargo test -p andromeda-app --example startup_logic_proof`:15fixture tests, including readiness ordering, stale attempts, cancellation, failure/retry, reduced motion and preserving corrupt local files.
 - `cargo run -p andromeda-app --example startup_proof`:40loading frames,126intro frames and failure controls, using the actual Slint software renderer with no OS window or account access.
@@ -39,3 +39,15 @@ API references:
 
 - https://docs.rs/slint/latest/slint/struct.Window.html
 - https://docs.slint.dev/latest/docs/slint/reference/elements/path/
+
+## Centered, larger splash revision
+
+Windows selects the monitor under the cursor (primary monitor fallback), reads its usable work area in a temporary per-monitor-aware thread context, and passes physical size/position to Slint before showing. It uses65%of usable width, a960physical-pixel minimum where there is room, and an85%cap on both axes, preserving exact16:9. A1920x1040work area gives1248x702;3840x2080gives2496x1404. Negative monitor origins and portrait/small work areas have pure geometry tests. Retry reselects and centers on the current cursor monitor. No display/DPI settings are changed. Actual multi-monitor desktop behavior still needs owner testing.
+
+## Exact-icon loader revision
+
+The former separate black ellipse segment is no longer drawn. The loading icon uses the original planet compound path verbatim in `planet-path.txt`; every Bezier control point receives the same rigid rotation of8*sin(2*pi*t/(4/3))degrees around(50,50). Planet and ring move together. This is a new loader proposal, not a newly approved intro. v23 geometry/timing remains unchanged. No backend transform support is required: rotation is applied to vector coordinates. Forty actual software-rendered frames were reviewed and overlaid against an independent CairoSVG render of the original path. Thresholded shape overlap was at least99.29%, with small edge-raster differences. The path itself matches the original exactly.
+
+Windows API references:
+- https://learn.microsoft.com/en-us/windows/win32/gdi/multiple-display-monitors-functions
+- https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows

@@ -53,3 +53,17 @@ pub fn loader_arc(seconds: f64) -> String {
     }
     ribbon(&mut out,&run);out
 }
+
+/// Rigid motion of the exact original icon, never a separately reconstructed ring.
+pub fn loader_angle(seconds:f64)->f32 { (8.*(seconds/(4./3.)*std::f64::consts::TAU).sin())as f32 }
+
+/// Rotate every original Bezier control point as one rigid shape. No new ellipse.
+pub fn loader_path(seconds:f64)->String {
+ use std::fmt::Write;
+ let angle=(loader_angle(seconds)as f64).to_radians();let(c,s)=(angle.cos(),angle.sin());
+ let mut out=String::new();let mut words=include_str!("../assets/startup/planet-path.txt").split_whitespace();
+ while let Some(word)=words.next(){
+  if let Ok(x)=word.parse::<f64>(){let y=words.next().unwrap().parse::<f64>().unwrap();let _=write!(out,"{:.6} {:.6} ",50.+(x-50.)*c-(y-50.)*s,50.+(x-50.)*s+(y-50.)*c);}
+  else{let _=write!(out,"{} ",word);}
+ }out
+}

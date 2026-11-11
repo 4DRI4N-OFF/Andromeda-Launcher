@@ -15,11 +15,15 @@ fn with_active(f:impl FnOnce(&mut Runtime)){ACTIVE.with(|a|{let active=a.borrow(
 pub fn run(dir:PathBuf)->Result<(),slint::PlatformError>{
  let splash=ui::SplashWindow::new()?;
  splash.set_cover_mask(startup_cover::cover(960.,540.,650.,720,405));
+ if let Some(p)=crate::startup_placement::current(){
+  splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));
+  splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));
+ }
  splash.show()?;
  let r=Rc::new(RefCell::new(Runtime {log_guard:None,splash,main:None,gate:Gate::new(false),dir,cancel:Arc::new(AtomicBool::new(false)),rendered:Arc::new(AtomicBool::new(false)),timer:slint::Timer::default(),started:Instant::now(),intro_start:None,handoff_start:None,origin:(0.,0.,720.),screen_origin:(0,0,720),waiting_since:None}));
  ACTIVE.with(|a|*a.borrow_mut()=Some(r.clone()));
  {
-  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_cover_mask(startup_cover::cover(960.,540.,650.,720,405));r.load();}}));
+  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();if let Some(p)=crate::startup_placement::current(){r.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));r.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));}r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_cover_mask(startup_cover::cover(960.,540.,650.,720,405));r.load();}}));
   rt.splash.on_cancel(||with_active(|r|r.close()));
   rt.splash.window().on_close_requested(||{with_active(|r|r.close());slint::CloseRequestResponse::KeepWindowShown});
   rt.timer.start(slint::TimerMode::Repeated,Duration::from_millis(16),||with_active(|r|r.tick()));
@@ -90,11 +94,11 @@ impl Runtime {
  fn tick(&mut self){
   let attempt=self.gate.attempt();
   match self.gate.stage(){
-   Stage::Loading=>{if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());return;}self.splash.set_arc_commands(startup::loader_arc(self.started.elapsed().as_secs_f64()).into());},
+   Stage::Loading=>{if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());return;}self.splash.set_loading_path(startup::loader_path(self.started.elapsed().as_secs_f64()).into());},
    Stage::Intro=>{
     let start=self.intro_start.unwrap();
     let Some(elapsed)=Instant::now().checked_duration_since(start) else {
-     self.splash.set_arc_commands(startup::loader_arc(self.started.elapsed().as_secs_f64()).into());return;
+     self.splash.set_loading_path(startup::loader_path(self.started.elapsed().as_secs_f64()).into());return;
     };
     let t=elapsed.as_secs_f64();let st=startup::frame(t);
     self.splash.set_letters_visible(true);self.splash.set_planet_x(st.x as f32);self.splash.set_planet_y(st.y as f32);self.splash.set_planet_size(st.size as f32);
