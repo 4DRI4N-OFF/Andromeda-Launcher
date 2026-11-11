@@ -2,6 +2,10 @@
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
+// Tabler MIT notice is retained in executable distributions.
+#[used]
+static TABLER_LICENSE: [u8; 1073] = *include_bytes!("../ui/tabler/LICENSE");
+
 
 mod intro;
 mod motion_ui;

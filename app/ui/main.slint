@@ -313,13 +313,14 @@ component HomeCard inherits Rectangle {
         border-radius: 17px * root.scale; background: ThemePalette.accent;
         Image { width: 100%; height: 100%; image-fit: fill; source: ThemePalette.background-style == "dawn" ? @image-url("shell/play-alba.svg") : ThemePalette.background-style == "constellation" ? @image-url("shell/play-cartografo.svg") : @image-url("shell/play-horizonte.svg"); }
         press := SpringValue { target: hit.pressed && !root.busy ? 1 : 0; }
-        Text { x: press.value * 2px; width: parent.width; height: parent.height; horizontal-alignment: center; vertical-alignment: center; text: root.busy ? "WORKING..." : "▶  PLAY"; font-family: ThemePalette.body-font; font-size: 17px * root.scale; font-weight: 800; letter-spacing: 3px; color: ThemePalette.on-accent; }
+        Text { x: (root.busy ? 0px : 12px * root.scale) + press.value * 2px; width: parent.width; height: parent.height; horizontal-alignment: center; vertical-alignment: center; text: root.busy ? "WORKING..." : "PLAY"; font-family: ThemePalette.body-font; font-size: 17px * root.scale; font-weight: 800; letter-spacing: 3px; color: ThemePalette.on-accent; }
+        Image { visible: !root.busy; x: parent.width / 2 - 57px * root.scale + press.value * 2px; y: (parent.height - self.height) / 2; width: 18px * root.scale; height: self.width; source: @image-url("tabler/player-play.svg"); colorize: ThemePalette.on-accent; }
         hit := TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.play(); } } }
     }
     if !root.selected : Rectangle {
         x: 28px * root.scale; y: parent.height - 76px * root.scale; width: parent.width - 56px * root.scale; height: 42px * root.scale;
         Rectangle { x: 0px; y: 0px; width: 42px * root.scale; height: self.width; border-radius: self.width / 2; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel-light;
-            Image { x: 14px * root.scale; y: 14px * root.scale; width: 14px * root.scale; height: 14px * root.scale; source: @image-url("shell/play.svg"); colorize: ThemePalette.muted; }
+            Image { x: 14px * root.scale; y: 14px * root.scale; width: 14px * root.scale; height: 14px * root.scale; source: @image-url("tabler/player-play.svg"); colorize: ThemePalette.muted; }
         }
         Text { x: 52px * root.scale; height: parent.height; vertical-alignment: center; text: "Play"; font-family: ThemePalette.body-font; font-size: 14px * root.scale; color: ThemePalette.muted; }
         TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.select(); root.play(); } } }
@@ -457,7 +458,7 @@ export component MainWindow inherits Window {
             Image { visible: root.width >= 1100px; x: 0px; y: 20px * root.design-scale; width: 270px * root.design-scale; height: 28px * root.design-scale; source: ThemePalette.background-style == "dawn" ? @image-url("branding/andromeda-dark.svg") : @image-url("branding/andromeda-light.svg"); image-fit: contain; }
             Image { visible: root.width < 1100px; x: 8px; y: 20px; width: 40px; height: 28px; source: @image-url("branding/andromeda-mark.svg"); colorize: ThemePalette.text-color; image-fit: contain; }
             Rectangle { x: parent.width - self.width; y: 5px * root.design-scale; width: 138px * root.design-scale; height: 69px * root.design-scale; border-radius: 35px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel;
-                Image { x: 17px * root.design-scale; y: 24px * root.design-scale; width: 24px * root.design-scale; height: 24px * root.design-scale; source: @image-url("shell/account.svg"); colorize: ThemePalette.accent; }
+                Image { x: 17px * root.design-scale; y: 24px * root.design-scale; width: 24px * root.design-scale; height: 24px * root.design-scale; source: @image-url("tabler/user-circle.svg"); colorize: ThemePalette.accent; }
                 Text { x: 52px * root.design-scale; width: parent.width - 62px * root.design-scale; height: parent.height; text: root.use-microsoft ? "Microsoft" : root.local-name; overflow: elide; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; font-weight: 600; color: ThemePalette.text-color; }
                 TouchArea { mouse-cursor: pointer; clicked => { root.active-tab = 4; } }
             }
@@ -477,7 +478,7 @@ export component MainWindow inherits Window {
                 for i in 5 : Rectangle {
                     x: (17px + i * 92px) * root.design-scale; width: 84px * root.design-scale; height: 78px * root.design-scale;
                     Image { x: 30px * root.design-scale; y: 27px * root.design-scale; width: 24px * root.design-scale; height: 24px * root.design-scale; image-fit: contain;
-                        source: i == 0 ? @image-url("shell/play.svg") : i == 1 ? @image-url("shell/instances.svg") : i == 2 ? @image-url("shell/mods.svg") : i == 3 ? @image-url("shell/settings.svg") : @image-url("shell/account.svg");
+                        source: i == 0 ? @image-url("tabler/player-play.svg") : i == 1 ? @image-url("tabler/cube.svg") : i == 2 ? @image-url("tabler/puzzle.svg") : i == 3 ? @image-url("tabler/adjustments-horizontal.svg") : @image-url("tabler/user-circle.svg");
                         colorize: abs(pill.value - i) < 0.4 ? ThemePalette.on-accent : ThemePalette.muted;
                     }
                     TouchArea { mouse-cursor: pointer; clicked => { root.active-tab = i; if i == 3 { root.settings-section = 2; } } }
@@ -504,7 +505,7 @@ export component MainWindow inherits Window {
                     }
                     Rectangle { width: 367px * root.design-scale; height: min(610px * root.design-scale, root.height - 290px * root.design-scale); border-radius: 27px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.field.with-alpha(0.24);
                         Image { width: 100%; height: 100%; image-fit: fill; source: @image-url("shell/new-card.svg"); colorize: ThemePalette.muted; }
-                        Text { y: parent.height / 2 - 37px * root.design-scale; width: 100%; text: "+"; horizontal-alignment: center; font-family: ThemePalette.body-font; font-size: 40px * root.design-scale; color: ThemePalette.muted; }
+                        Image { x: (parent.width - self.width) / 2; y: parent.height / 2 - 25px * root.design-scale; width: 32px * root.design-scale; height: self.width; source: @image-url("tabler/plus.svg"); colorize: ThemePalette.muted; }
                         Text { y: parent.height / 2 + 27px * root.design-scale; width: 100%; text: "New instance"; horizontal-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; font-weight: 600; color: ThemePalette.muted; }
                         TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.active-tab = 3; root.settings-section = 0; } } }
                     }
