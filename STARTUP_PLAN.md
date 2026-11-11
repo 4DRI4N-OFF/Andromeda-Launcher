@@ -14,7 +14,7 @@ The accepted intro is v23, the rigid letter train, approved on 2026-11-11. The v
 
 `startup_runtime.rs` opens a small borderless topmost splash, starts the event loop, and dispatches local settings/themes/instance preparation to a worker. The moving icon reflects pending local preparation, not a made-up progress percentage. The protected session's presence is checked, but no token is read or refreshed by the startup worker. The existing independent account restoration remains in main UI preparation and is not a readiness gate.
 
-The intro starts only after local data and main UI preparation, finishing the current icon-motion cycle at its original pose first (at most1.333seconds). The old QOI intro is no longer called. Startup state and attempt tokens reject late callbacks after close or retry. Local preparation has a60-second timeout; first main render has an8-second timeout. Failure has explicit Retry and Close controls. Logging setup failure is handled as a visible error instead of a panic.
+The intro starts only after local data and main UI preparation. The old QOI intro is no longer called. Startup state and attempt tokens reject late callbacks after close or retry. Local preparation has a60-second timeout; first main render has an8-second timeout. Failure has explicit Retry and Close controls. Logging setup failure is handled as a visible error instead of a panic.
 
 Slint Paths draw the moving logo. A static violet backdrop and a sampled outer-contour cover texture implement the original occlusion without dark patches. These are not prerecorded animation frames. Asset generation is reproducible with `scripts/generate_startup_assets.py`.
 
@@ -44,9 +44,9 @@ API references:
 
 Windows selects the monitor under the cursor (primary monitor fallback), reads its usable work area in a temporary per-monitor-aware thread context, and passes physical size/position to Slint before showing. It uses65%of usable width, a960physical-pixel minimum where there is room, and an85%cap on both axes, preserving exact16:9. A1920x1040work area gives1248x702;3840x2080gives2496x1404. Negative monitor origins and portrait/small work areas have pure geometry tests. Retry reselects and centers on the current cursor monitor. No display/DPI settings are changed. Actual multi-monitor desktop behavior still needs owner testing.
 
-## Exact-icon loader revision
+## Static original icon loader (selected revision)
 
-The former separate black ellipse segment is no longer drawn. The loading icon uses the original planet compound path verbatim in `planet-path.txt`; every Bezier control point receives the same rigid rotation of8*sin(2*pi*t/(4/3))degrees around(50,50). Planet and ring move together. This is a new loader proposal, not a newly approved intro. v23 geometry/timing remains unchanged. No backend transform support is required: rotation is applied to vector coordinates. Forty actual software-rendered frames were reviewed and overlaid against an independent CairoSVG render of the original path. Thresholded shape overlap was at least99.29%, with small edge-raster differences. The path itself matches the original exactly.
+The original compound path is shown without any motion during local preparation. No added arc, balance, spinner or extra cycle delay remains. Its center(960,540),size650 and exact path are the same as frame0of accepted v23, so readiness starts that intro directly. The earlier moving-icon proposal is superseded. The static original icon and native intro frame0are checked by software-rendered pixel comparison. No new desktop verification is claimed.
 
 Windows API references:
 - https://learn.microsoft.com/en-us/windows/win32/gdi/multiple-display-monitors-functions

@@ -61,11 +61,7 @@ impl Runtime {
         if let Err(e)=main.ui.window().set_rendering_notifier(move |state,_|{if matches!(state,slint::RenderingState::AfterRendering){flag.store(true,Ordering::Release);}}){main.auth_cancel.store(true,Ordering::Relaxed);r.fail(format!("No se pudo verificar el primer fotograma: {e:?}"));return;}
         main.ui.set_startup_glyphs(slint::ModelRc::new(slint::VecModel::from(startup::frame(2.1).glyphs.iter().map(|g|crate::StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
         r.main=Some(main);r.gate.accept(attempt,Event::MainPrepared);
-        if r.gate.stage()==Stage::Intro {
-         // Complete the current real loading lap at its original pose before v23.
-         let elapsed=r.started.elapsed().as_secs_f64();let lap=4./3.;
-         r.intro_start=Some(Instant::now()+Duration::from_secs_f64(lap-elapsed.rem_euclid(lap)));
-        }else{r.show_main();}
+        if r.gate.stage()==Stage::Intro {r.intro_start=Some(Instant::now());}else{r.show_main();}
        },
        Err(e)=>r.fail(format!("No se pudo preparar el launcher: {e}")),
       }
@@ -94,11 +90,11 @@ impl Runtime {
  fn tick(&mut self){
   let attempt=self.gate.attempt();
   match self.gate.stage(){
-   Stage::Loading=>{if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());return;}self.splash.set_loading_path(startup::loader_path(self.started.elapsed().as_secs_f64()).into());},
+   Stage::Loading=>{if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());return;}},
    Stage::Intro=>{
     let start=self.intro_start.unwrap();
     let Some(elapsed)=Instant::now().checked_duration_since(start) else {
-     self.splash.set_loading_path(startup::loader_path(self.started.elapsed().as_secs_f64()).into());return;
+     return;
     };
     let t=elapsed.as_secs_f64();let st=startup::frame(t);
     self.splash.set_letters_visible(true);self.splash.set_planet_x(st.x as f32);self.splash.set_planet_y(st.y as f32);self.splash.set_planet_size(st.size as f32);

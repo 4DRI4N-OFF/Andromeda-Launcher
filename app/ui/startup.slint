@@ -9,8 +9,6 @@ export component StartupLogo inherits Rectangle {
     in property <image> cover-mask;
     in property <color> ink: white;
     in property <bool> loading: false;
-    in property <string> arc-commands: "";
-    in property <string> loading-path: "";
     property <float> unit: self.width / 1920px;
     Path { visible: root.glyphs.length > 0 && root.glyphs[0].visible; x: root.glyphs[0].x * root.unit * 1px; y: (root.glyphs[0].y - 100 * root.glyphs[0].sy) * root.unit * 1px;
         width: 200 * root.glyphs[0].sx * root.unit * 1px; height: 100 * root.glyphs[0].sy * root.unit * 1px;
@@ -61,7 +59,7 @@ export component StartupLogo inherits Rectangle {
     Path { visible: true; x: (root.planet-x - root.planet-size / 2) * root.unit * 1px; y: (root.planet-y - root.planet-size / 2) * root.unit * 1px;
         width: root.planet-size * root.unit * 1px; height: self.width;
         viewbox-width: 100; viewbox-height: 100; fit: fill; fill: root.ink;
-        commands: root.loading && root.loading-path != "" ? root.loading-path : "M 76.0223 50.889 C 76.1121 48.3434 75.828 45.7342 75.1291 43.1263 C 74.6798 41.4501 74.0816 39.8582 73.3525 38.3599 C 78.4683 38.4379 82.1439 39.3427 83.4252 41.1443 C 85.1711 43.5993 82.2266 47.2003 76.0223 50.889 ZM 30.5551 68.9128 C 37.0558 75.3132 46.6668 77.9683 56.1737 75.4265 C 65.1052 73.0385 71.7947 66.5296 74.5952 58.4952 C 72.6884 58.878 70.2758 59.2621 67.8626 59.609 C 87.8444 52.1552 98.95 43.1439 94.4365 38.1737 C 91.5773 35.0253 82.8257 34.1605 71.5765 35.2666 C 65.4269 26.0761 53.8783 21.5 42.5337 24.5332 C 31.0472 27.6043 23.2811 37.5375 22.7193 48.7378 C 13.018 53.3016 6.1323 58.2508 4.8182 62.351 C 2.8576 68.4679 13.4722 70.9863 30.5551 68.9128 ZM 23.5974 56.9042 C 23.8523 57.8552 24.1555 58.7806 24.5036 59.6781 C 26.9924 62.3892 37.2773 64.0256 49.3673 60.7932 C 52.6866 59.9057 54.3917 59.5538 55.0906 59.5218 C 54.1318 59.8053 53.1558 60.0826 52.1637 60.3526 C 31.1072 66.0829 15.0042 65.2712 16.2143 59.2765 C 16.626 57.2368 19.034 54.8663 22.7995 52.467 C 22.9367 53.9392 23.2002 55.4223 23.5974 56.9042 Z";
+        commands: "M 76.0223 50.889 C 76.1121 48.3434 75.828 45.7342 75.1291 43.1263 C 74.6798 41.4501 74.0816 39.8582 73.3525 38.3599 C 78.4683 38.4379 82.1439 39.3427 83.4252 41.1443 C 85.1711 43.5993 82.2266 47.2003 76.0223 50.889 ZM 30.5551 68.9128 C 37.0558 75.3132 46.6668 77.9683 56.1737 75.4265 C 65.1052 73.0385 71.7947 66.5296 74.5952 58.4952 C 72.6884 58.878 70.2758 59.2621 67.8626 59.609 C 87.8444 52.1552 98.95 43.1439 94.4365 38.1737 C 91.5773 35.0253 82.8257 34.1605 71.5765 35.2666 C 65.4269 26.0761 53.8783 21.5 42.5337 24.5332 C 31.0472 27.6043 23.2811 37.5375 22.7193 48.7378 C 13.018 53.3016 6.1323 58.2508 4.8182 62.351 C 2.8576 68.4679 13.4722 70.9863 30.5551 68.9128 ZM 23.5974 56.9042 C 23.8523 57.8552 24.1555 58.7806 24.5036 59.6781 C 26.9924 62.3892 37.2773 64.0256 49.3673 60.7932 C 52.6866 59.9057 54.3917 59.5538 55.0906 59.5218 C 54.1318 59.8053 53.1558 60.0826 52.1637 60.3526 C 31.1072 66.0829 15.0042 65.2712 16.2143 59.2765 C 16.626 57.2368 19.034 54.8663 22.7995 52.467 C 22.9367 53.9392 23.2002 55.4223 23.5974 56.9042 Z";
     }
 
 
@@ -75,13 +73,11 @@ export component SplashWindow inherits Window {
     in property <float> planet-x: 960; in property <float> planet-y: 540; in property <float> planet-size: 650;
     in property <bool> letters-visible: false;
     in property <image> cover-mask;
-    in property <string> arc-commands: "";
-    in property <string> loading-path: "";
     Rectangle { width: parent.width; height: parent.height; background: #080611; clip: true;
         Image { width:parent.width;height:parent.height;source:@image-url("../assets/startup/backdrop.png");image-fit:fill; }
         StartupLogo { width: parent.width; height: parent.height; glyphs: root.letters-visible ? root.glyphs : [];
             planet-x: root.planet-x; planet-y: root.planet-y; planet-size: root.planet-size;
-            loading: !root.letters-visible; loading-path:root.loading-path; arc-commands: root.arc-commands;cover-mask:root.cover-mask; }
+            loading: !root.letters-visible;cover-mask:root.cover-mask; }
     }
     if root.failure != "" : Rectangle { width:100%;height:100%;background:#100b20;
         Text { x:24px;y:parent.height / 2 - 120px;width:parent.width - 48px;height:120px;text:root.failure;wrap:word-wrap;color:white;font-size:16px; }
