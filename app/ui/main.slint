@@ -282,6 +282,49 @@ component ProfileRow inherits Rectangle {
     }
 }
 
+component HomeCard inherits Rectangle {
+    in property <float> scale: 1;
+    in property <string> title;
+    in property <string> detail;
+    in property <int> index;
+    in property <bool> selected;
+    in property <bool> busy;
+    callback select;
+    callback play;
+    width: 367px * scale; height: 610px * scale;
+    Image { width: 100%; height: 100%; image-fit: fill;
+        source: ThemePalette.background-style == "dawn" ? @image-url("shell/card-alba.svg") : ThemePalette.background-style == "constellation" ? @image-url("shell/card-cartografo.svg") : @image-url("shell/card-horizonte.svg");
+    }
+    Rectangle { width: 100%; height: 100%; border-radius: 27px * root.scale; border-width: root.selected ? 1.5px : 0px; border-color: ThemePalette.accent.with-alpha(0.65); background: transparent; }
+    Image { x: 28px * root.scale; y: 28px * root.scale; width: 64px * root.scale; height: 64px * root.scale; image-fit: contain;
+        source: mod(root.index,4) == 0 ? @image-url("shell/profile-0.svg") : mod(root.index,4) == 1 ? @image-url("shell/profile-1.svg") : mod(root.index,4) == 2 ? @image-url("shell/profile-2.svg") : @image-url("shell/profile-3.svg");
+    }
+    Text { x: 28px * root.scale; y: 112px * root.scale; width: parent.width - 56px * root.scale; text: root.title; overflow: elide; font-family: ThemePalette.display-font; font-size: 22px * root.scale; font-weight: 800; color: ThemePalette.text-color; }
+    Text { x: 28px * root.scale; y: 144px * root.scale; width: parent.width - 56px * root.scale; text: root.detail; overflow: elide; font-family: ThemePalette.body-font; font-size: 12px * root.scale; color: ThemePalette.muted; }
+    Text { visible: root.height >= 450px * root.scale; x: 28px * root.scale; y: 182px * root.scale; text: "THIS WEEK"; font-family: ThemePalette.body-font; font-size: 10px * root.scale; font-weight: 700; letter-spacing: 2px; color: ThemePalette.muted.with-alpha(0.65); }
+    Rectangle { visible: root.height >= 450px * root.scale; x: 28px * root.scale; y: 210px * root.scale; width: parent.width - 56px * root.scale; height: 66px * root.scale;
+        Text { width: 100%; height: 100%; text: "Activity not recorded"; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 12px * root.scale; color: ThemePalette.muted.with-alpha(0.55); }
+    }
+    Text { x: 28px * root.scale; y: parent.height - 148px * root.scale; text: "Play time not recorded"; font-family: ThemePalette.body-font; font-size: 14px * root.scale; color: ThemePalette.text-color; }
+    Text { x: 28px * root.scale; y: parent.height - 122px * root.scale; text: "Last session: not recorded"; font-family: ThemePalette.body-font; font-size: 13px * root.scale; color: ThemePalette.muted; }
+    TouchArea { mouse-cursor: pointer; clicked => { root.select(); } }
+    if root.selected : Rectangle {
+        x: 28px * root.scale; y: parent.height - 84px * root.scale; width: parent.width - 56px * root.scale; height: 58px * root.scale;
+        border-radius: 17px * root.scale; background: ThemePalette.accent;
+        Image { width: 100%; height: 100%; image-fit: fill; source: ThemePalette.background-style == "dawn" ? @image-url("shell/play-alba.svg") : ThemePalette.background-style == "constellation" ? @image-url("shell/play-cartografo.svg") : @image-url("shell/play-horizonte.svg"); }
+        press := SpringValue { target: hit.pressed && !root.busy ? 1 : 0; }
+        Text { x: press.value * 2px; width: parent.width; height: parent.height; horizontal-alignment: center; vertical-alignment: center; text: root.busy ? "WORKING..." : "▶  PLAY"; font-family: ThemePalette.body-font; font-size: 17px * root.scale; font-weight: 800; letter-spacing: 3px; color: ThemePalette.on-accent; }
+        hit := TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.play(); } } }
+    }
+    if !root.selected : Rectangle {
+        x: 28px * root.scale; y: parent.height - 76px * root.scale; width: parent.width - 56px * root.scale; height: 42px * root.scale;
+        Rectangle { x: 0px; y: 0px; width: 42px * root.scale; height: self.width; border-radius: self.width / 2; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel-light;
+            Image { x: 14px * root.scale; y: 14px * root.scale; width: 14px * root.scale; height: 14px * root.scale; source: @image-url("shell/play.svg"); colorize: ThemePalette.muted; }
+        }
+        Text { x: 52px * root.scale; height: parent.height; vertical-alignment: center; text: "Play"; font-family: ThemePalette.body-font; font-size: 14px * root.scale; color: ThemePalette.muted; }
+        TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.select(); root.play(); } } }
+    }
+}
 component GlassPanel inherits Rectangle {
     border-radius: 27px; border-width: 1px; border-color: ThemePalette.border;
     background: ThemePalette.panel; clip: true;
@@ -329,7 +372,7 @@ component ThemeRow inherits Rectangle {
 
 export component MainWindow inherits Window {
     title: @tr("Andromeda Launcher");
-    icon: @image-url("logo-mark.png");
+    icon: @image-url("branding/planet.svg");
     preferred-width: 1600px;
     preferred-height: 900px;
     min-width: 860px;
@@ -339,6 +382,8 @@ export component MainWindow inherits Window {
     in-out property <bool> dark-mode: true;
     in-out property <bool> intro-visible: false;
     in property <image> intro-frame;
+    in property <[string]> profile-titles;
+    in property <[string]> profile-details;
     in property <[string]> instance-names: ["Default profile (phase 2)"];
     in-out property <int> instance-index: 0;
     in-out property <string> instance-name: "New instance";
@@ -381,9 +426,10 @@ export component MainWindow inherits Window {
         root.settings-open = root.active-tab >= 3;
         root.appearance-open = false;
         if root.active-tab == 4 { root.settings-section = 1; }
-        if root.active-tab == 3 { root.settings-section = 2; }
+
         root.page-start = InteractionMotion.clock;
     }
+    property <float> design-scale: max(1, min(root.width / 1600px, root.height / 900px));
     property <length> shell-left: root.width < 1100px ? 214px : 402px;
     in-out property <int> settings-section: 0;
     changed appearance-open => { if root.appearance-open { root.settings-open = true; root.settings-section = 2; } }
@@ -407,39 +453,73 @@ export component MainWindow inherits Window {
     Rectangle {
         width: 100%; height: 100%;
         Rectangle {
-            x: 36px; y: 30px; width: parent.width - 72px; height: 107px;
-            Text { x: 4px; y: 14px; text: "ANDROMEDA"; font-family: ThemePalette.background-style == "dawn" ? "Fraunces" : "Inter"; font-size: 13px; font-weight: 800; letter-spacing: 5px; color: ThemePalette.text-color; }
+            x: 36px * root.design-scale; y: 30px * root.design-scale; width: parent.width - 72px * root.design-scale; height: 107px * root.design-scale;
+            Image { visible: root.width >= 1100px; x: 0px; y: 20px * root.design-scale; width: 270px * root.design-scale; height: 28px * root.design-scale; source: ThemePalette.background-style == "dawn" ? @image-url("branding/andromeda-dark.svg") : @image-url("branding/andromeda-light.svg"); image-fit: contain; }
+            Image { visible: root.width < 1100px; x: 8px; y: 20px; width: 40px; height: 28px; source: @image-url("branding/andromeda-mark.svg"); colorize: ThemePalette.text-color; image-fit: contain; }
+            Rectangle { x: parent.width - self.width; y: 5px * root.design-scale; width: 138px * root.design-scale; height: 69px * root.design-scale; border-radius: 35px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel;
+                Image { x: 17px * root.design-scale; y: 24px * root.design-scale; width: 24px * root.design-scale; height: 24px * root.design-scale; source: @image-url("shell/account.svg"); colorize: ThemePalette.accent; }
+                Text { x: 52px * root.design-scale; width: parent.width - 62px * root.design-scale; height: parent.height; text: root.use-microsoft ? "Microsoft" : root.local-name; overflow: elide; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; font-weight: 600; color: ThemePalette.text-color; }
+                TouchArea { mouse-cursor: pointer; clicked => { root.active-tab = 4; } }
+            }
             Rectangle {
-                x: (parent.width - self.width) / 2; y: 0px; width: 486px; height: 78px;
-                border-radius: 39px; border-width: 1px; border-color: ThemePalette.border;
+                x: (parent.width - self.width) / 2; y: 0px; width: 486px * root.design-scale; height: 78px * root.design-scale;
+                border-radius: 39px * root.design-scale; border-width: 1px; border-color: ThemePalette.border;
                 background: ThemePalette.panel;
                 pill := SpringValue { target: root.active-tab; }
-                Rectangle { x: 17px + max(-0.025,min(4.025,pill.value)) * 92px; y: 11px; width: 84px; height: 56px; border-radius: 18px;
+                Rectangle { x: (17px + max(-0.025,min(4.025,pill.value)) * 92px) * root.design-scale; y: 11px * root.design-scale; width: 84px * root.design-scale; height: 56px * root.design-scale; border-radius: 18px * root.design-scale;
                     background: ThemePalette.nav-accent;
-                    Image { width: 84px; height: 56px; image-fit: contain;
+                    Image { width: 84px * root.design-scale; height: 56px * root.design-scale; image-fit: contain;
                         visible: root.selected-theme == "horizonte" || root.selected-theme == "alba" || root.selected-theme == "cartografo";
                         source: root.selected-theme == "alba" ? @image-url("shell/nav-alba.svg") : root.selected-theme == "cartografo" ? @image-url("shell/nav-cartografo.svg") : @image-url("shell/nav-horizonte.svg");
                     }
                     drop-shadow-color: ThemePalette.accent.with-alpha(0.22); drop-shadow-blur: 24px; drop-shadow-offset-y: 5px;
                 }
                 for i in 5 : Rectangle {
-                    x: 17px + i * 92px; width: 84px; height: 78px;
-                    Image { x: 30px; y: 27px; width: 24px; height: 24px; image-fit: contain;
+                    x: (17px + i * 92px) * root.design-scale; width: 84px * root.design-scale; height: 78px * root.design-scale;
+                    Image { x: 30px * root.design-scale; y: 27px * root.design-scale; width: 24px * root.design-scale; height: 24px * root.design-scale; image-fit: contain;
                         source: i == 0 ? @image-url("shell/play.svg") : i == 1 ? @image-url("shell/instances.svg") : i == 2 ? @image-url("shell/mods.svg") : i == 3 ? @image-url("shell/settings.svg") : @image-url("shell/account.svg");
                         colorize: abs(pill.value - i) < 0.4 ? ThemePalette.on-accent : ThemePalette.muted;
                     }
-                    TouchArea { mouse-cursor: pointer; clicked => { root.active-tab = i; } }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.active-tab = i; if i == 3 { root.settings-section = 2; } } }
                 }
             }
-            Text { y: 92px; width: parent.width; text: root.active-tab == 0 ? "PLAY" : root.active-tab == 1 ? "INSTANCES" : root.active-tab == 2 ? "MODS" : root.active-tab == 3 ? "SETTINGS" : "ACCOUNT";
-                horizontal-alignment: center; font-family: "Inter"; font-size: 11px; font-weight: 700; letter-spacing: 5px; color: ThemePalette.muted;
+            Text { y: 92px * root.design-scale; width: parent.width; text: root.active-tab == 0 ? "PLAY" : root.active-tab == 1 ? "INSTANCES" : root.active-tab == 2 ? "MODS" : root.active-tab == 3 ? "SETTINGS" : "ACCOUNT";
+                horizontal-alignment: center; font-family: "Inter"; font-size: 11px * root.design-scale; font-weight: 700; letter-spacing: 5px * root.design-scale; color: ThemePalette.muted;
+            }
+        }
+
+        // Home cards use live profile metadata; unavailable telemetry is explicit.
+        if root.active-tab == 0 : Rectangle {
+            x: 36px * root.design-scale; y: 170px * root.design-scale;
+            width: parent.width - 72px * root.design-scale; height: parent.height - 206px * root.design-scale;
+            ScrollView { x: 0px; y: 0px; width: parent.width; height: parent.height - 84px * root.design-scale; horizontal-scrollbar-policy: root.width >= 1600px && root.instance-names.length <= 3 ? always-off : as-needed; vertical-scrollbar-policy: always-off;
+                HorizontalLayout { spacing: 20px * root.design-scale; alignment: start;
+                    for name[i] in root.instance-names : HomeCard {
+                        scale: root.design-scale; index: i; height: min(610px * root.design-scale, root.height - 290px * root.design-scale);
+                        title: i < root.profile-titles.length ? root.profile-titles[i] : name;
+                        detail: i < root.profile-details.length ? root.profile-details[i] : "Minecraft 1.21.11";
+                        selected: i == root.instance-index; busy: root.busy;
+                        select => { if !root.busy { root.instance-index = i; root.instance-selected(i); } }
+                        play => { root.launch-offline(root.local-name); }
+                    }
+                    Rectangle { width: 367px * root.design-scale; height: min(610px * root.design-scale, root.height - 290px * root.design-scale); border-radius: 27px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.field.with-alpha(0.24);
+                        Image { width: 100%; height: 100%; image-fit: fill; source: @image-url("shell/new-card.svg"); colorize: ThemePalette.muted; }
+                        Text { y: parent.height / 2 - 37px * root.design-scale; width: 100%; text: "+"; horizontal-alignment: center; font-family: ThemePalette.body-font; font-size: 40px * root.design-scale; color: ThemePalette.muted; }
+                        Text { y: parent.height / 2 + 27px * root.design-scale; width: 100%; text: "New instance"; horizontal-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; font-weight: 600; color: ThemePalette.muted; }
+                        TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.active-tab = 3; root.settings-section = 0; } } }
+                    }
+                }
+            }
+            Rectangle { y: parent.height - self.height; width: 100%; height: 64px * root.design-scale; border-radius: 20px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel;
+                Rectangle { x: 26px * root.design-scale; y: 28px * root.design-scale; width: 8px * root.design-scale; height: self.width; border-radius: self.width / 2; background: root.busy ? ThemePalette.accent : #43dca1; }
+                Text { x: 48px * root.design-scale; width: parent.width - 72px * root.design-scale; height: parent.height; text: root.launch-status; overflow: elide; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; color: ThemePalette.muted; }
             }
         }
 
         // ---------------- play ----------------
         // `visible: false` still takes up space inside a layout, so the inactive
         // screen is removed with an `if` instead of being hidden.
-        if root.active-tab < 2 : Rectangle {
+        if root.active-tab == 1 : Rectangle {
             x: 36px; y: 160px; width: parent.width - 72px; height: parent.height - 196px;
 
             Rectangle { width: parent.width; height: parent.height; y: (1 - root.page-progress) * 24px; opacity: 0.35 + 0.65 * max(0, min(1, root.page-progress));

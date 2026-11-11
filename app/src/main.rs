@@ -51,6 +51,29 @@ fn refresh_instances(
         )
         .into()
     }));
+    let mut titles: Vec<slint::SharedString> = vec!["Default profile".into()];
+    let mut details: Vec<slint::SharedString> = vec!["1.21.11 · Vanilla".into()];
+    for item in &items {
+        titles.push(item.name.clone().into());
+        let loader = match &item.loader {
+            Some(andromeda_core::instances::Loader::Fabric { version }) => {
+                format!("Fabric {version}")
+            }
+            Some(andromeda_core::instances::Loader::Quilt { version }) => {
+                format!("Quilt {version}")
+            }
+            Some(andromeda_core::instances::Loader::Forge { version }) => {
+                format!("Forge {version}")
+            }
+            Some(andromeda_core::instances::Loader::NeoForge { version }) => {
+                format!("NeoForge {version}")
+            }
+            None => "Vanilla".into(),
+        };
+        details.push(format!("{} · {}", item.version, loader).into());
+    }
+    ui.set_profile_titles(slint::ModelRc::new(slint::VecModel::from(titles)));
+    ui.set_profile_details(slint::ModelRc::new(slint::VecModel::from(details)));
     *shared.lock().expect("instance state") = items;
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(labels)));
     ui.set_instance_index(0);
