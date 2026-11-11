@@ -96,7 +96,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.set_reduce_animations(true);
     capture(&window, "theme-before-click.bmp", 1100, 760);
     for pressed in [true, false] {
-        let position = slint::LogicalPosition::new(550.0, 350.0);
+        let position = slint::LogicalPosition::new(650.0, 320.0);
         let button = slint::platform::PointerEventButton::Left;
         window.dispatch_event(if pressed {
             slint::platform::WindowEvent::PointerPressed { position, button }
@@ -146,6 +146,7 @@ fn main() -> Result<(), slint::PlatformError> {
     assert!(!timer.running());
     assert_eq!(ui.global::<ThemePalette>().get_selection_scale(), 1.0);
     ui.set_appearance_open(false);
+    ui.set_settings_section(0);
     ui.set_settings_open(false);
     capture(&window, "theme-play.bmp", 1100, 760);
     ui.set_settings_open(true);
