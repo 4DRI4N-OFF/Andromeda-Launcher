@@ -55,7 +55,7 @@ fn main() -> Result<(), slint::PlatformError> {
     slint::platform::set_platform(Box::new(Offscreen(window.clone()))).unwrap();
     let ui = MainWindow::new()?;
     let _motion_timer = motion_ui::install(&ui);
-    ui.window().set_size(slint::PhysicalSize::new(1100, 760));
+    ui.window().set_size(slint::PhysicalSize::new(1600, 900));
     ui.set_theme_choices(theme_ui::choices(&andromeda_core::themes::builtins()));
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(vec![
         "Default profile (phase 2)".into(),
@@ -67,7 +67,9 @@ fn main() -> Result<(), slint::PlatformError> {
             .into(),
     );
     ui.set_reduce_animations(true);
+    ui.set_active_tab(3);
     ui.set_settings_open(true);
+    ui.set_active_tab(3);
     ui.set_appearance_open(true);
     let packs = andromeda_core::themes::builtins();
     let timer = Rc::new(slint::Timer::default());
@@ -75,7 +77,7 @@ fn main() -> Result<(), slint::PlatformError> {
         theme_ui::apply(&ui, p, false, &timer);
         ui.show()?;
         tick(1);
-        capture(&window, &format!("theme-{}.bmp", p.id), 1100, 760);
+        capture(&window, &format!("theme-{}.bmp", p.id), 1600, 900);
     }
     let proof_dir =
         std::env::temp_dir().join(format!("andromeda-theme-proof-{}", std::process::id()));
@@ -94,9 +96,9 @@ fn main() -> Result<(), slint::PlatformError> {
     // A real pointer click on the middle card must call through to the engine and settings.
     theme_ui::apply(&ui, &packs[0], false, &timer);
     ui.set_reduce_animations(true);
-    capture(&window, "theme-before-click.bmp", 1100, 760);
+    capture(&window, "theme-before-click.bmp", 1600, 900);
     for pressed in [true, false] {
-        let position = slint::LogicalPosition::new(650.0, 320.0);
+        let position = slint::LogicalPosition::new(900.0, 490.0);
         let button = slint::platform::PointerEventButton::Left;
         window.dispatch_event(if pressed {
             slint::platform::WindowEvent::PointerPressed { position, button }
@@ -108,21 +110,21 @@ fn main() -> Result<(), slint::PlatformError> {
     let restored = andromeda_core::settings::Settings::load(&settings_path);
     assert_eq!(restored.theme_id, "alba");
     assert!(restored.reduce_animations);
-    capture(&window, "theme-pointer-applied.bmp", 1100, 760);
+    capture(&window, "theme-pointer-applied.bmp", 1600, 900);
     std::fs::remove_dir_all(proof_dir).unwrap();
     theme_ui::apply(&ui, &packs[0], false, &timer);
     ui.set_reduce_animations(false);
     theme_ui::apply(&ui, &packs[1], true, &timer);
     tick(80);
-    capture(&window, "theme-transition-080.bmp", 1100, 760);
+    capture(&window, "theme-transition-080.bmp", 1600, 900);
     assert_ne!(
         ui.global::<ThemePalette>().get_bg(),
         slint::Color::from_rgb_u8(247, 221, 206)
     );
     tick(120);
-    capture(&window, "theme-transition-200.bmp", 1100, 760);
+    capture(&window, "theme-transition-200.bmp", 1600, 900);
     tick(400);
-    capture(&window, "theme-transition-settled.bmp", 1100, 760);
+    capture(&window, "theme-transition-settled.bmp", 1600, 900);
     assert_eq!(
         ui.global::<ThemePalette>().get_bg(),
         slint::Color::from_rgb_u8(247, 221, 206)
@@ -136,7 +138,7 @@ fn main() -> Result<(), slint::PlatformError> {
     );
     assert_eq!(ui.global::<ThemePalette>().get_selection_scale(), 1.0);
     assert!(!timer.running());
-    capture(&window, "theme-reduced-motion.bmp", 1100, 760);
+    capture(&window, "theme-reduced-motion.bmp", 1600, 900);
     // Turning reduced motion on during a transition settles on the next frame.
     ui.set_reduce_animations(false);
     theme_ui::apply(&ui, &packs[0], true, &timer);
@@ -147,11 +149,14 @@ fn main() -> Result<(), slint::PlatformError> {
     assert_eq!(ui.global::<ThemePalette>().get_selection_scale(), 1.0);
     ui.set_appearance_open(false);
     ui.set_settings_section(0);
+    ui.set_active_tab(0);
     ui.set_settings_open(false);
-    capture(&window, "theme-play.bmp", 1100, 760);
+    capture(&window, "theme-play.bmp", 1600, 900);
+    ui.set_active_tab(3);
     ui.set_settings_open(true);
-    capture(&window, "theme-settings.bmp", 1100, 760);
+    capture(&window, "theme-settings.bmp", 1600, 900);
     ui.window().set_size(slint::PhysicalSize::new(860, 620));
+    ui.set_active_tab(3);
     ui.set_appearance_open(true);
     tick(1);
     capture(&window, "theme-minimum.bmp", 860, 620);
