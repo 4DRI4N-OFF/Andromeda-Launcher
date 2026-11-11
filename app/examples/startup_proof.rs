@@ -19,6 +19,9 @@ fn main()->Result<(),slint::PlatformError>{
  let w=MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);slint::platform::set_platform(Box::new(Offscreen(w.clone()))).unwrap();let ui=SplashWindow::new()?;ui.window().set_size(slint::PhysicalSize::new(720,405));ui.show()?;
  std::fs::create_dir_all("startup-proof").unwrap();
  for f in 0..40 {ui.set_cover_mask(startup_cover::cover(960.,540.,650.,720,405));ui.set_letters_visible(false);ui.set_planet_x(960.);ui.set_planet_y(540.);ui.set_planet_size(650.);capture(&w,&format!("startup-proof/loader-{f:03}.bmp"),720,405);}
+ for i in 0..=12 {let level=0.65+0.2*(i as f32/12.*std::f32::consts::TAU).sin();ui.set_ambience(level);ui.set_cover_mask(startup_cover::cover_ambience(960.,540.,650.,720,405,level));capture(&w,&format!("startup-proof/ambience-{i:02}.bmp"),720,405);}
+ for i in 0..=6 {let level=0.65*(1.-i as f32/6.);ui.set_ambience(level);ui.set_cover_mask(startup_cover::cover_ambience(960.,540.,650.,720,405,level));capture(&w,&format!("startup-proof/link-{i:02}.bmp"),720,405);}
+ ui.set_ambience(0.);ui.set_cover_mask(startup_cover::cover(960.,540.,650.,720,405));
  capture(&w,"startup-proof/static-last.bmp",720,405);
  for f in 0..126 {let st=startup::frame(f as f64/60.);ui.set_cover_mask(startup_cover::cover(st.x,st.y,st.size,720,405));ui.set_letters_visible(true);ui.set_planet_x(st.x as f32);ui.set_planet_y(st.y as f32);ui.set_planet_size(st.size as f32);ui.set_glyphs(slint::ModelRc::new(slint::VecModel::from(st.glyphs.iter().map(|g|StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));capture(&w,&format!("startup-proof/intro-{f:03}.bmp"),720,405);}
  ui.set_failure("No se pudo preparar el launcher. Tus archivos no se han cambiado.".into());capture(&w,"startup-proof/failure.bmp",720,405);

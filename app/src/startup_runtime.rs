@@ -14,7 +14,8 @@ struct Runtime {
 fn with_active(f:impl FnOnce(&mut Runtime)){ACTIVE.with(|a|{let active=a.borrow().clone();if let Some(r)=active {f(&mut r.borrow_mut());}});}
 pub fn run(dir:PathBuf)->Result<(),slint::PlatformError>{
  let splash=ui::SplashWindow::new()?;
- splash.set_cover_mask(startup_cover::cover(960.,540.,650.,720,405));
+ splash.set_ambience(0.65);
+ splash.set_cover_mask(slint::Image::default());
  if let Some(p)=crate::startup_placement::current(){
   splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));
   splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));
@@ -23,7 +24,7 @@ pub fn run(dir:PathBuf)->Result<(),slint::PlatformError>{
  let r=Rc::new(RefCell::new(Runtime {log_guard:None,splash,main:None,gate:Gate::new(false),dir,cancel:Arc::new(AtomicBool::new(false)),rendered:Arc::new(AtomicBool::new(false)),timer:slint::Timer::default(),started:Instant::now(),intro_start:None,handoff_start:None,origin:(0.,0.,720.),screen_origin:(0,0,720),waiting_since:None}));
  ACTIVE.with(|a|*a.borrow_mut()=Some(r.clone()));
  {
-  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();if let Some(p)=crate::startup_placement::current(){r.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));r.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));}r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_cover_mask(startup_cover::cover(960.,540.,650.,720,405));r.load();}}));
+  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();if let Some(p)=crate::startup_placement::current(){r.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));r.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));}r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_ambience(0.65);r.splash.set_cover_mask(slint::Image::default());r.load();}}));
   rt.splash.on_cancel(||with_active(|r|r.close()));
   rt.splash.window().on_close_requested(||{with_active(|r|r.close());slint::CloseRequestResponse::KeepWindowShown});
   rt.timer.start(slint::TimerMode::Repeated,Duration::from_millis(16),||with_active(|r|r.tick()));
@@ -61,7 +62,7 @@ impl Runtime {
         if let Err(e)=main.ui.window().set_rendering_notifier(move |state,_|{if matches!(state,slint::RenderingState::AfterRendering){flag.store(true,Ordering::Release);}}){main.auth_cancel.store(true,Ordering::Relaxed);r.fail(format!("No se pudo verificar el primer fotograma: {e:?}"));return;}
         main.ui.set_startup_glyphs(slint::ModelRc::new(slint::VecModel::from(startup::frame(2.1).glyphs.iter().map(|g|crate::StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
         r.main=Some(main);r.gate.accept(attempt,Event::MainPrepared);
-        if r.gate.stage()==Stage::Intro {r.intro_start=Some(Instant::now());}else{r.show_main();}
+        if r.gate.stage()==Stage::Intro {r.intro_start=Some(Instant::now()+Duration::from_millis(300));}else{r.show_main();}
        },
        Err(e)=>r.fail(format!("No se pudo preparar el launcher: {e}")),
       }
@@ -90,13 +91,16 @@ impl Runtime {
  fn tick(&mut self){
   let attempt=self.gate.attempt();
   match self.gate.stage(){
-   Stage::Loading=>{if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());return;}},
+   Stage::Loading=>{let level=0.65+0.2*(self.started.elapsed().as_secs_f32()*std::f32::consts::TAU/2.8).sin();self.splash.set_ambience(level);if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());return;}},
    Stage::Intro=>{
     let start=self.intro_start.unwrap();
     let Some(elapsed)=Instant::now().checked_duration_since(start) else {
-     return;
+     let left=start.saturating_duration_since(Instant::now()).as_secs_f32()/0.3;
+     let ready_t=(self.started.elapsed().as_secs_f32()-(0.3-start.saturating_duration_since(Instant::now()).as_secs_f32())).max(0.);
+     let level=(0.65+0.2*(ready_t*std::f32::consts::TAU/2.8).sin())*left.clamp(0.,1.);
+     self.splash.set_ambience(level);return;
     };
-    let t=elapsed.as_secs_f64();let st=startup::frame(t);
+    self.splash.set_ambience(0.);let t=elapsed.as_secs_f64();let st=startup::frame(t);
     self.splash.set_letters_visible(true);self.splash.set_planet_x(st.x as f32);self.splash.set_planet_y(st.y as f32);self.splash.set_planet_size(st.size as f32);
     self.splash.set_cover_mask(startup_cover::cover(st.x,st.y,st.size,720,405));
     self.splash.set_glyphs(slint::ModelRc::new(slint::VecModel::from(st.glyphs.iter().map(|g|ui::StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));

@@ -51,3 +51,7 @@ The original compound path is shown without any motion during local preparation.
 Windows API references:
 - https://learn.microsoft.com/en-us/windows/win32/gdi/multiple-display-monitors-functions
 - https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
+
+## Colored breathing background
+
+During static-icon preparation, a precomputed violet/indigo/magenta backdrop blends over the original at0.65+0.2*sin(2*pi*t/2.8). Only texture opacity changes; no particles, network, runtime blur or background generation. No per-frame occlusion image is allocated while waiting because no glyphs need hiding. Once prepared, the current level fades to zero over300ms while the icon remains fixed; then the original v23 begins with its unchanged background, logo and handoff. Twenty breathing/link renders were inspected; the last link and first v23 frame match pixel-for-pixel. Actual desktop timing/performance still needs the owner's test.
