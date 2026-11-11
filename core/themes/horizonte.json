@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "horizonte",
+  "name": "Horizonte",
+  "description": "Deep space, mineral light and warm amber.",
+  "dark": true,
+  "colors": {
+    "background": "#0a0618",
+    "background_end": "#1c0f38",
+    "panel": "#221735e8",
+    "panel_light": "#36264de8",
+    "border": "#ffffff29",
+    "text": "#f4effd",
+    "muted": "#b9adc9",
+    "accent": "#ffc37a",
+    "accent_end": "#ff8a4d",
+    "on_accent": "#27170c",
+    "field": "#171025",
+    "danger": "#ff9db1"
+  },
+  "fonts": {
+    "body": "Inter",
+    "display": "Unbounded",
+    "values": "Inter"
+  },
+  "background": "galaxy"
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "alba",
+  "name": "Alba",
+  "description": "A soft dawn, editorial type and coral.",
+  "dark": false,
+  "colors": {
+    "background": "#f7ddce",
+    "background_end": "#e5d9f3",
+    "panel": "#fff9f3e8",
+    "panel_light": "#ffffffff",
+    "border": "#ffffffd9",
+    "text": "#27213a",
+    "muted": "#675d78",
+    "accent": "#ff7a5c",
+    "accent_end": "#ff4d3d",
+    "on_accent": "#29110b",
+    "field": "#fff9f5",
+    "danger": "#a52b46"
+  },
+  "fonts": {
+    "body": "Inter",
+    "display": "Fraunces",
+    "values": "Inter"
+  },
+  "background": "dawn"
+}

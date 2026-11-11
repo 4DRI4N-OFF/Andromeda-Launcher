@@ -68,3 +68,10 @@ Layout was checked by rendering the window headlessly with Slint's software rend
 with the intro overlay shown, and by launching the real Windows build and inspecting the
 window (header mark, embedded font, card heights, window icon). Clicking every control by
 hand, resizing during a session and multi-DPI remain untested.
+
+### Appearance
+
+See [THEME_ENGINE.md](THEME_ENGINE.md) for the JSON theme packs, motion settings,
+custom-pack format, verification and current design limits.
+
+<sub>Development assistance: Instinct.</sub>

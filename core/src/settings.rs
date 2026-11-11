@@ -6,6 +6,7 @@ use std::{fs, io, path::Path};
 pub struct Settings {
     pub reduce_animations: bool,
     pub dark_mode: bool,
+    pub theme_id: String,
 }
 
 impl Default for Settings {
@@ -13,6 +14,7 @@ impl Default for Settings {
         Self {
             reduce_animations: false,
             dark_mode: true,
+            theme_id: "horizonte".into(),
         }
     }
 }
@@ -46,12 +48,21 @@ mod tests {
     }
 
     #[test]
+    fn legacy_settings_keep_motion_and_gain_theme() {
+        let s: Settings =
+            serde_json::from_str(r#"{"reduce_animations":true,"dark_mode":false}"#).unwrap();
+        assert!(s.reduce_animations);
+        assert_eq!(s.theme_id, "horizonte");
+    }
+
+    #[test]
     fn roundtrip() {
         let dir = std::env::temp_dir().join("andromeda-test-settings");
         let p = dir.join("settings.json");
         let s = Settings {
             reduce_animations: true,
             dark_mode: false,
+            theme_id: "alba".into(),
         };
         s.save(&p).unwrap();
         assert_eq!(Settings::load(&p), s);

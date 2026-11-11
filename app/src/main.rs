@@ -5,6 +5,7 @@
 
 mod intro;
 mod native_login;
+mod theme_ui;
 use andromeda_core::settings::Settings;
 use slint::ComponentHandle;
 use std::{
@@ -60,6 +61,41 @@ fn main() -> Result<(), slint::PlatformError> {
     tracing::info!("Launcher UI created");
     ui.set_reduce_animations(s.reduce_animations);
     ui.set_dark_mode(s.dark_mode);
+    let mut packs = andromeda_core::themes::builtins();
+    let (custom, errors) = andromeda_core::themes::load_custom(&dir.join("themes"));
+    packs.extend(custom);
+    for error in &errors {
+        tracing::warn!("Theme rejected: {error}");
+    }
+    ui.set_theme_status(if errors.is_empty() {
+        "Custom packs: place validated JSON files in data/themes, then restart. Seasonal overlays are not enabled in this phase.".into()
+    } else { format!("{} invalid theme pack(s) skipped. See the launcher log.", errors.len()).into() });
+    ui.set_theme_choices(theme_ui::choices(&packs));
+    let packs = Rc::new(packs);
+    let theme_timer = Rc::new(slint::Timer::default());
+    let initial = packs
+        .iter()
+        .find(|p| p.id == s.theme_id)
+        .unwrap_or(&packs[0]);
+    theme_ui::apply(&ui, initial, false, &theme_timer);
+    let theme_weak = ui.as_weak();
+    let theme_packs = packs.clone();
+    let switch_timer = theme_timer.clone();
+    let theme_settings = settings_path.clone();
+    ui.on_theme_selected(move |id| {
+        let Some(ui) = theme_weak.upgrade() else {
+            return;
+        };
+        let Some(pack) = theme_packs.iter().find(|p| p.id == id.as_str()) else {
+            return;
+        };
+        theme_ui::apply(&ui, pack, true, &switch_timer);
+        if let Err(e) = theme_ui::save_selection(&ui, &theme_settings) {
+            ui.set_theme_status(
+                format!("Theme applied for this session, but could not save it: {e}").into(),
+            );
+        }
+    });
     let timer = Rc::new(slint::Timer::default());
     if intro::should_play(s.reduce_animations) {
         match intro::decode(intro::FRAMES[0]) {
@@ -106,9 +142,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = ui.as_weak();
     ui.on_settings_changed(move || {
         if let Some(ui) = weak.upgrade() {
+            ui.global::<ThemePalette>()
+                .set_reduce_motion(ui.get_reduce_animations());
             let new = Settings {
                 reduce_animations: ui.get_reduce_animations(),
                 dark_mode: ui.get_dark_mode(),
+                theme_id: ui.get_selected_theme().to_string(),
             };
             if let Err(e) = new.save(&settings_path) {
                 tracing::error!("could not save settings: {e}");
