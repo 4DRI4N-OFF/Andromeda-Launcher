@@ -2,9 +2,9 @@
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
 )]
-// Tabler MIT notice is retained in executable distributions.
+// Coolicons MIT notice is retained in executable distributions.
 #[used]
-static TABLER_LICENSE: [u8; 1073] = *include_bytes!("../ui/tabler/LICENSE");
+static COOLICONS_LICENSE: [u8; 1073] = *include_bytes!("../ui/coolicons/LICENSE");
 
 
 mod intro;
