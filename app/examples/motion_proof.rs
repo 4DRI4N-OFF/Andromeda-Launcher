@@ -96,8 +96,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 assert!(ui.get_settings_open());
             }
             60 => {
-                pointer(&window, 375., 45., true);
-                pointer(&window, 375., 45., false);
+                pointer(&window, 120., 340., true);
+                pointer(&window, 120., 340., false);
                 assert!(ui.get_appearance_open());
             }
             75 => pointer(&window, 550., 350., true),
