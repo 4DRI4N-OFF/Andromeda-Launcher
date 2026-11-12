@@ -10,6 +10,7 @@ struct Runtime {
  cancel:Arc<AtomicBool>, rendered:Arc<AtomicBool>, timer:slint::Timer,
  started:Instant, intro_start:Option<Instant>, handoff_start:Option<Instant>,
  origin:(f32,f32,f32),screen_origin:(i32,i32,u32), waiting_since:Option<Instant>,
+ resize:Option<crate::startup_resize::Resize>,resize_started:Option<Instant>,resize_tick:Option<Instant>,logo_box:Option<(i32,i32,u32)>,
 }
 fn with_active(f:impl FnOnce(&mut Runtime)){ACTIVE.with(|a|{let active=a.borrow().clone();if let Some(r)=active {f(&mut r.borrow_mut());}});}
 pub fn run(dir:PathBuf)->Result<(),slint::PlatformError>{
@@ -21,10 +22,10 @@ pub fn run(dir:PathBuf)->Result<(),slint::PlatformError>{
   splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));
  }
  splash.show()?;
- let r=Rc::new(RefCell::new(Runtime {log_guard:None,splash,main:None,gate:Gate::new(false),dir,cancel:Arc::new(AtomicBool::new(false)),rendered:Arc::new(AtomicBool::new(false)),timer:slint::Timer::default(),started:Instant::now(),intro_start:None,handoff_start:None,origin:(0.,0.,720.),screen_origin:(0,0,720),waiting_since:None}));
+ let r=Rc::new(RefCell::new(Runtime {log_guard:None,splash,main:None,gate:Gate::new(false),dir,cancel:Arc::new(AtomicBool::new(false)),rendered:Arc::new(AtomicBool::new(false)),timer:slint::Timer::default(),started:Instant::now(),intro_start:None,handoff_start:None,origin:(0.,0.,720.),screen_origin:(0,0,720),waiting_since:None,resize:None,resize_started:None,resize_tick:None,logo_box:None}));
  ACTIVE.with(|a|*a.borrow_mut()=Some(r.clone()));
  {
-  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();if let Some(p)=crate::startup_placement::current(){r.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));r.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));}r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_ambience(0.65);r.splash.set_cover_mask(slint::Image::default());r.load();}}));
+  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();r.resize=None;r.resize_started=None;r.resize_tick=None;r.logo_box=None;r.splash.set_locked_logo_width(0.);if let Some(p)=crate::startup_placement::current(){r.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));r.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));}r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_ambience(0.65);r.splash.set_cover_mask(slint::Image::default());r.load();}}));
   rt.splash.on_cancel(||with_active(|r|r.close()));
   rt.splash.window().on_close_requested(||{with_active(|r|r.close());slint::CloseRequestResponse::KeepWindowShown});
   rt.timer.start(slint::TimerMode::Repeated,Duration::from_millis(16),||with_active(|r|r.tick()));
@@ -78,6 +79,7 @@ impl Runtime {
   self.waiting_since=Some(Instant::now());
   self.rendered.store(false,Ordering::Release);
   main.ui.set_startup_overlay(true);
+  main.ui.set_startup_reveal(if main.ui.get_reduce_animations(){1.}else{0.});
   let sp=self.splash.window().position();let ss=self.splash.window().size();
   if let Some(p)=crate::startup_placement::main_at(sp.x+ss.width as i32/2,sp.y+ss.height as i32/2){
    main.ui.window().set_size(slint::PhysicalSize::new(p.width,p.height));
@@ -90,10 +92,30 @@ impl Runtime {
   }
   if let Err(e)=main.ui.show(){self.fail(format!("No se pudo mostrar el launcher: {e}"));return;}
   let mp=main.ui.window().position();let sf=main.ui.window().scale_factor();
-  self.screen_origin=(sp.x,sp.y,ss.width);
-  self.origin=((sp.x-mp.x) as f32/sf,(sp.y-mp.y) as f32/sf,ss.width as f32/sf);
+  self.screen_origin=self.logo_box.unwrap_or((sp.x,sp.y,ss.width));
+  self.origin=((self.screen_origin.0-mp.x) as f32/sf,(self.screen_origin.1-mp.y) as f32/sf,self.screen_origin.2 as f32/sf);
   main.ui.set_startup_x(self.origin.0);main.ui.set_startup_y(self.origin.1);main.ui.set_startup_width(self.origin.2);
   main.ui.window().request_redraw();
+ }
+ fn grow_splash(&mut self)->bool{
+  let now=Instant::now();
+  if self.resize.is_none(){
+   let pos=self.splash.window().position();let size=self.splash.window().size();
+   let Some(to)=crate::startup_placement::main_at(pos.x+size.width as i32/2,pos.y+size.height as i32/2)else{return true;};
+   self.logo_box=Some((pos.x,pos.y,size.width));
+   self.splash.set_locked_logo_width(size.width as f32/self.splash.window().scale_factor());
+   self.resize=Some(crate::startup_resize::Resize{from:crate::startup_placement::Placement{x:pos.x,y:pos.y,width:size.width,height:size.height},to});
+   self.resize_started=Some(now);self.resize_tick=Some(now);
+  }
+  let gap=now.duration_since(self.resize_tick.unwrap()).as_secs_f32();self.resize_tick=Some(now);
+  let explicit=std::env::var_os("ANDROMEDA_SIMPLE_RESIZE").is_some();
+  let mut t=now.duration_since(self.resize_started.unwrap()).as_secs_f32()/crate::startup_resize::SECONDS;
+  if crate::startup_resize::should_snap(false,explicit,gap){t=1.;tracing::warn!("Startup native resize uses single-step fallback");}
+  let p=self.resize.unwrap().at(t);
+  self.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));
+  self.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));
+  self.splash.window().request_redraw();
+  t>=1.
  }
  fn tick(&mut self){
   let attempt=self.gate.attempt();
@@ -111,7 +133,7 @@ impl Runtime {
     self.splash.set_letters_visible(true);self.splash.set_planet_x(st.x as f32);self.splash.set_planet_y(st.y as f32);self.splash.set_planet_size(st.size as f32);
     self.splash.set_cover_mask(startup_cover::cover(st.x,st.y,st.size,720,405));
     self.splash.set_glyphs(slint::ModelRc::new(slint::VecModel::from(st.glyphs.iter().map(|g|ui::StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
-    if t>=startup::INTRO_SECONDS {self.gate.accept(attempt,Event::IntroFinished);self.show_main();}
+    if t>=startup::INTRO_SECONDS && self.grow_splash(){self.gate.accept(attempt,Event::IntroFinished);self.show_main();}
    },
    Stage::AwaitingMainFrame=>{
     if self.waiting_since.is_some_and(|t|t.elapsed()>Duration::from_secs(8)){self.fail("El launcher no ha dibujado su primer fotograma. Puedes reintentar sin cambiar tus datos.".into());return;}
@@ -129,11 +151,12 @@ impl Runtime {
      let end=main.ui.global::<crate::ThemePalette>().get_text_color();
      let mix=|v:u8|(255.+(v as f32-255.)*q).round()as u8;
      main.ui.set_startup_ink(slint::Color::from_rgb_u8(mix(end.red()),mix(end.green()),mix(end.blue())));
+     main.ui.set_startup_reveal(crate::startup_resize::ease((t/0.65).min(1.)));
      let w=main.ui.get_startup_dest_width();let scale=w/1120.24;
      let endx=main.ui.get_startup_dest_x()-400.28*scale;
      let endy=main.ui.get_startup_dest_y()+(28.-75.*w/836.)/2.-456.34*scale;
      main.ui.set_startup_x(self.origin.0+(endx-self.origin.0)*q);main.ui.set_startup_y(self.origin.1+(endy-self.origin.1)*q);main.ui.set_startup_width(self.origin.2+(1920.*scale-self.origin.2)*q);
-     if t>=1.{main.ui.set_startup_overlay(false);self.gate.accept(attempt,Event::HandoffFinished);}
+     if t>=1.{main.ui.set_startup_reveal(1.);main.ui.set_startup_overlay(false);self.gate.accept(attempt,Event::HandoffFinished);}
     }
    },
    _=>{},

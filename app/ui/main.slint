@@ -384,6 +384,7 @@ export component MainWindow inherits Window {
     in-out property <bool> dark-mode: true;
     in-out property <bool> intro-visible: false;
     in property <bool> startup-overlay: false;
+    in property <float> startup-reveal: 1;
     in property <color> startup-ink: white;
     in property <[StartupGlyph]> startup-glyphs;
     in property <float> startup-x: 0;
@@ -748,6 +749,11 @@ export component MainWindow inherits Window {
         }
     }
 
+    // Cover menu until its first complete frame, then reveal without a white flash.
+    Rectangle { width: 100%; height: 100%; background: #080611; opacity: 1 - root.startup-reveal;
+        Image { width: 100%; height: 100%; source: @image-url("../assets/startup/backdrop.png"); image-fit: fill; }
+        TouchArea { enabled: root.startup-overlay; }
+    }
     // Keep the same Path instances at the destination: no SVG/Path rasterization swap.
     if root.startup-glyphs.length > 0 : StartupLogo {
         property <float> dest-scale: root.startup-dest-width / 1120.24;

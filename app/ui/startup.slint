@@ -85,10 +85,14 @@ export component SplashWindow inherits Window {
     in property <bool> letters-visible: false;
     in property <float> ambience: 0;
     in property <image> cover-mask;
+    // Lock accepted logo proportions while the native surface grows around it.
+    in property <float> locked-logo-width: 0;
     Rectangle { width: parent.width; height: parent.height; background: #080611; clip: true;
         Image { width:parent.width;height:parent.height;source:@image-url("../assets/startup/backdrop.png");image-fit:fill; }
         Image { width:parent.width;height:parent.height;source:@image-url("../assets/startup/ambience.png");image-fit:fill;opacity:root.ambience; }
-        StartupLogo { width: parent.width; height: parent.height; glyphs: root.letters-visible ? root.glyphs : [];
+        StartupLogo { x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            width: root.locked-logo-width > 0 ? root.locked-logo-width * 1px : parent.width; height: root.locked-logo-width > 0 ? self.width * 9 / 16 : parent.height;
+            occlude: root.locked-logo-width <= 0; glyphs: root.letters-visible ? root.glyphs : [];
             planet-x: root.planet-x; planet-y: root.planet-y; planet-size: root.planet-size;
             loading: !root.letters-visible;cover-mask:root.cover-mask; }
     }
