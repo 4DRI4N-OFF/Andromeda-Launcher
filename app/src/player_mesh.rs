@@ -2,7 +2,20 @@
 //! perspective camera. Prototype only: no network, accounts or launcher hooks.
 #[derive(Clone,Copy)]struct V{x:f32,y:f32,z:f32,u:f32,v:f32}
 #[derive(Clone,Copy)]struct P{x:f32,y:f32,iz:f32,u:f32,v:f32}
+// Steady-state solution of a unit-mass damped spring following a sine target.
+// x'' + 2*zeta*w0*x' + w0*w0*x = w0*w0*sin(w*t).
+// Analytic evaluation makes previews independent of frame rate, without startup jumps.
+fn spring_wave(t:f32,period:f32)->f32{
+ let w=std::f32::consts::TAU/period;let w0=8.0f32;let zeta=0.85;
+ let a=w0*w0-w*w;let b=2.*zeta*w0*w;
+ let gain=w0*w0/(a*a+b*b).sqrt();let lag=b.atan2(a);
+ gain*(w*t-lag).sin()
+}
+pub fn idle_yaw(time:f32)->f32{0.4+0.035*spring_wave(time,6.)}
 pub fn render(texture:&[u8],slim:bool,yaw:f32,width:usize,height:usize)->Vec<u8>{
+ render_idle(texture,slim,yaw,0.,width,height)
+}
+pub fn render_idle(texture:&[u8],slim:bool,yaw:f32,time:f32,width:usize,height:usize)->Vec<u8>{
  assert_eq!(texture.len(),64*64*4);assert!(width>0&&height>0&&width<=1024&&height<=1024);
  let mut out=vec![0;width*height*4];let mut depth=vec![0f32;width*height];
  let aw=if slim{3.}else{4.};
@@ -22,10 +35,12 @@ pub fn render(texture:&[u8],slim:bool,yaw:f32,width:usize,height:usize)->Vec<u8>
   for (vertices,(u,v,uw,vh),shade) in faces{
    let uv=[(u,v),(u+uw,v),(u+uw,v+vh),(u,v+vh)];
    let points:Vec<P>=vertices.iter().zip(uv).map(|(&(x,y,z),(u,v))|{
-    let angle=match part{2=>-0.10f32,3=>0.10,4=>-0.035,5=>0.035,_=>0.};
+    let breath=spring_wave(time,4.);
+    let angle=match part{2=>-0.10f32-0.018*breath,3=>0.10+0.018*breath,4=>-0.035,5=>0.035,_=>0.};
     let pivot=if part>=4{12.}else{24.};let(sa,ca)=angle.sin_cos();
     let dx=x-cx;let dy=y-pivot;
-    project(V{x:cx+dx*ca-dy*sa,y:pivot+dx*sa+dy*ca,z,u,v},yaw,width,height)
+    let(px,pz)=if part==0{let(sh,ch)=(0.025*spring_wave(time,7.)).sin_cos();((x-cx)*ch+(z-cz)*sh+cx,-(x-cx)*sh+(z-cz)*ch+cz)}else{(cx+dx*ca-dy*sa,z)};
+    project(V{x:px,y:pivot+dx*sa+dy*ca+if part<4{0.065*breath}else{0.},z:pz,u,v},yaw,width,height)
    }).collect();
    tri([points[0],points[1],points[2]],shade,texture,width,height,&mut out,&mut depth);
    tri([points[0],points[2],points[3]],shade,texture,width,height,&mut out,&mut depth);
@@ -59,5 +74,7 @@ fn tri(p:[P;3],shade:f32,tex:&[u8],w:usize,h:usize,out:&mut[u8],depth:&mut[f32])
  use super::*;const TEX:&[u8]=include_bytes!("../assets/player-demo/fixture.rgba");
  #[test]fn geometry_changes_with_camera(){let a=render(TEX,false,0.,240,360);let b=render(TEX,false,1.,240,360);assert_ne!(a,b);assert!(a.chunks_exact(4).filter(|p|p[3]>0).count()>1000);}
  #[test]fn slim_changes_real_silhouette(){assert_ne!(render(TEX,false,0.2,240,360),render(TEX,true,0.2,240,360));}
+ #[test]fn spring_stays_bounded(){for i in 0..10000{let t=i as f32/120.;assert!((idle_yaw(t)-0.4).abs()<=0.0351);assert!(spring_wave(t,4.).abs()<=1.001);}}
+ #[test]fn idle_changes_pose(){assert_ne!(render_idle(TEX,false,0.4,0.,240,360),render_idle(TEX,false,0.4,1.,240,360));}
  #[test]fn transparent_background(){let a=render(TEX,false,0.4,240,360);assert_eq!(&a[0..4],&[0,0,0,0]);assert!(a.chunks_exact(4).all(|p|p[3]==0||p[3]==255));}
 }

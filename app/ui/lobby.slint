@@ -10,6 +10,7 @@ export component LobbyWindow inherits Window {
     in-out property <int> active-tab:0;
     in-out property <int> selected-instance:0;
     in property <bool> neutral:false;
+    in property <bool> reduce-motion:false;
     property <float> s: max(0.78,min(1.16,self.height / 900px));
     property <color> ink:#f2f2fa;
     property <color> muted:#a5a6b8;
@@ -43,7 +44,13 @@ export component LobbyWindow inherits Window {
             TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=i;}}
         }
     }
-    if root.active-tab == 0 : Rectangle {
+    // Header selection updates immediately. Content layers remain alive while fading.
+    // No translation: outgoing 0.6s; incoming delay 0.3s + 0.7s ease-out.
+    for page in [0,1,2,3,4] : Rectangle {
+      x:0px;y:0px;width:parent.width;height:parent.height;background:transparent;
+      opacity: root.active-tab == page ? 1 : 0;
+      animate opacity {duration:root.reduce-motion ? 0ms : root.active-tab == page ? 700ms : 600ms; delay:root.reduce-motion ? 0ms : root.active-tab == page ? 300ms : 0ms; easing:ease-out;}
+    if page == 0 : Rectangle {
         x:root.pad;y:175px * root.s;width:parent.width - 2 * root.pad;height:parent.height - 255px * root.s;
         Text {x:0px;y:0px;text:"TUS INSTANCIAS";font-family:"Inter";font-size:10px * root.s;letter-spacing:2px;color:root.muted;}
         for name[i] in ["Vanilla","Fabric","NeoForge"] : Rectangle {x:0px;
@@ -53,12 +60,12 @@ export component LobbyWindow inherits Window {
             Rectangle {x:19px * root.s;y:22px * root.s;width:4px * root.s;height:49px * root.s;border-radius:2px;background:root.selected-instance == i ? root.accent : #49485e;}
             Text {x:38px * root.s;y:21px * root.s;text:name;font-family:"Unbounded";font-size:17px * root.s;font-weight:600;color:root.selected-instance == i ? root.ink : #c0c0ce;}
             Text {x:38px * root.s;y:57px * root.s;text:i == 0 ? "Minecraft / sin mods" : i == 1 ? "Ligero y personalizable" : "Tu colección de mods";font-family:"Inter";font-size:11px * root.s;color:root.muted;}
-            TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.selected-instance=i;}}
+            TouchArea {enabled:root.active-tab == page;x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.selected-instance=i;}}
         }
         Rectangle {x:0px;y:384px * root.s;width:root.left-w;height:52px * root.s;border-radius:14px * root.s;border-width:1px;border-color:root.line;background:#171826a0;
             Image {x:20px;y:17px;width:18px;height:18px;source:@image-url("tabler/plus.svg");colorize:root.muted;}
             Text {y:0px;x:49px;width:parent.width - 65px;height:100%;text:"Gestionar instancias";vertical-alignment:center;font-family:"Inter";font-size:12px;color:root.muted;}
-            TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=1;}}
+            TouchArea {enabled:root.active-tab == page;x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=1;}}
         }
         Rectangle {x:0px;y:parent.height - 82px * root.s;width:root.left-w;height:72px * root.s;border-radius:18px * root.s;background:#8cdaea;
             Image {x:25px * root.s;y:25px * root.s;width:22px * root.s;height:22px * root.s;source:@image-url("tabler/player-play.svg");colorize:#10202a;}
@@ -86,18 +93,19 @@ export component LobbyWindow inherits Window {
                 Text {x:24px * root.s;y:56px * root.s;text:root.neutral ? "Modo local" : "Cuenta Microsoft";font-family:"Inter";font-size:19px * root.s;font-weight:600;color:root.ink;}
                 Text {x:24px * root.s;y:92px * root.s;width:parent.width - 48px * root.s;text:root.neutral ? "Inicia sesión para mostrar tu skin de Minecraft." : "Vista previa. No se ha accedido a ninguna cuenta.";wrap:word-wrap;font-family:"Inter";font-size:12px * root.s;color:root.muted;}
                 Text {x:24px * root.s;y:153px * root.s;text:"ABRIR CUENTA  >";font-family:"Inter";font-size:10px * root.s;font-weight:700;letter-spacing:1px;color:root.accent;}
-                TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=4;}}
+                TouchArea {enabled:root.active-tab == page;x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=4;}}
             }
             Text {x:4px;y:425px * root.s;width:parent.width - 8px;text:"Sin rangos, misiones ni recompensas inventadas. Solo información del launcher.";wrap:word-wrap;font-family:"Inter";font-size:11px * root.s;color:root.muted;}
         }
     }
-    if root.active-tab != 0 : Rectangle {
+    if page != 0 : Rectangle {
         x:root.pad;y:175px * root.s;width:parent.width - 2 * root.pad;height:parent.height - 255px * root.s;
-        Text {x:0px;y:0px;text:root.active-tab == 1 ? "Instancias" : root.active-tab == 2 ? "Mods" : root.active-tab == 3 ? "Ajustes" : "Cuenta";font-family:"Unbounded";font-size:30px * root.s;font-weight:600;color:root.ink;}
+        Text {x:0px;y:0px;text:page == 1 ? "Instancias" : page == 2 ? "Mods" : page == 3 ? "Ajustes" : "Cuenta";font-family:"Unbounded";font-size:30px * root.s;font-weight:600;color:root.ink;}
         Rectangle {x:0px;y:80px * root.s;width:parent.width;height:parent.height - 100px * root.s;border-radius:22px;border-width:1px;border-color:root.line;background:root.panel;
             Text {x:32px;y:32px;width:parent.width - 64px;text:"Propuesta de navegación. Esta pantalla aún no está integrada con las funciones del launcher.";font-family:"Inter";font-size:17px;color:root.ink;wrap:word-wrap;}
             Text {x:32px;y:105px;width:parent.width - 64px;text:"Primero el diseño del lobby. Después, los controles y datos reales, sin perder perfiles ni ajustes.";font-family:"Inter";font-size:14px;color:root.muted;wrap:word-wrap;}
         }
+    }
     }
     Rectangle {x:0px;y:parent.height - 50px * root.s;width:parent.width;height:50px * root.s;background:#0c0d18ed;
         Text {y:0px;x:root.pad;height:100%;vertical-alignment:center;text:"ANDROMEDA  /  PROPUESTA DE LOBBY";font-family:"Inter";font-size:9px * root.s;letter-spacing:1.3px;color:root.muted;}

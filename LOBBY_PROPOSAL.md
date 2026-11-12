@@ -81,3 +81,22 @@ layered block mountains, trees, blue fog and warm lights. It is a flat backgroun
 illustration with depth cues, not a live 3D world and not a game screenshot.
 The model in front remains actual geometry. Background uses proportional cover
 cropping, not stretching. No copyrighted game assets were imported.
+
+## Approved motion proposal, 02:01 Nov 12
+The user approved crossfade between tabs and subtle player idle. Header changes
+immediately, with no content slide. Existing content fades out in 600ms; incoming
+content starts after 300ms and fades in over 700ms with ease-out. Total 1s.
+This is an interpretation of the supplied reference analysis, not an exact copy:
+https://www.youtube.com/watch?v=0XZIs2l7QGk (reference timings estimated +/-0.1s).
+The horizontal mode selector/parallax was not part of this approval and is absent.
+
+The mesh idle uses a slow +/-0.035 rad camera yaw (6s), tiny upper-body breathing
+(4s), opposed arm movement and a +/-0.025 rad head turn (7s). All use the analytic
+steady-state solution of a damped spring following a sine target (w0=8, zeta=0.85).
+This is bounded periodic motion, not a runtime collision/physics world. Feet remain
+planted and there is no whole-body translation. Five unique mesh tests pass. `reduce-motion` disables fades and idle;
+OS preference wiring is still pending. `lobby_preview` is an optional manual runner
+with a 33ms timer, not production integration. The offscreen proof uses deterministic
+time and contains 180 frames at 30fps, with Lobby->Account at 1.5s and back at 3.5s.
+No actual desktop preview was launched. Real-time input, rapid tab switching, CPU
+budget, background pausing and DPI remain untested. Account screen is a placeholder.
