@@ -1,0 +1,106 @@
+// Visual lobby proposal. No game art or game assets. No launch/auth effects.
+import "./fonts/inter.ttf";
+import "./fonts/unbounded.ttf";
+export component LobbyWindow inherits Window {
+    title: "Andromeda / Lobby proposal";
+    preferred-width:1728px; preferred-height:936px;
+    min-width:860px; min-height:620px;
+    background:#0b0b14;
+    in property <image> player-render;
+    in-out property <int> active-tab:0;
+    in-out property <int> selected-instance:0;
+    in property <bool> neutral:false;
+    property <float> s: max(0.78,min(1.16,self.height / 900px));
+    property <color> ink:#f2f2fa;
+    property <color> muted:#a5a6b8;
+    property <color> accent:#8cdaea;
+    property <color> panel:#141522dd;
+    property <color> line:#ffffff16;
+    property <length> pad:40px * s;
+    property <length> left-w:315px * s;
+    property <length> right-w:310px * s;
+    property <bool> wide:self.width >= 1220px;
+    property <string> instance:selected-instance == 0 ? "Vanilla" : selected-instance == 1 ? "Fabric" : "NeoForge";
+    Image {x:0px;y:0px;width:parent.width;height:parent.height;source:@image-url("shell/galaxy.png");image-fit:cover;opacity:0.28;}
+    Rectangle {x:0px;y:0px;width:parent.width;height:parent.height;background:@linear-gradient(0deg,#080911ed,#10122300);}
+    // Quiet vertical divisions give depth without importing a game's backdrop.
+    Rectangle {x:parent.width * 0.42;y:parent.height * 0.19;width:1px;height:67%;background:#8cdaea0a;}
+    Rectangle {x:parent.width * 0.72;y:parent.height * 0.19;width:1px;height:67%;background:#8cdaea0a;}
+    Rectangle {x:0px;y:0px;height:138px * root.s;width:parent.width;background:#0e101bdc;
+        Image {x:root.pad;y:28px * root.s;width:230px * root.s;height:29px * root.s;source:@image-url("branding/andromeda-light.svg");image-fit:contain;}
+        Text {x:root.pad;y:71px * root.s;text:"TU MUNDO. A TU MANERA.";font-family:"Inter";font-size:9px * root.s;letter-spacing:2px;color:root.muted;}
+        Rectangle {x:parent.width - root.pad - 190px * root.s;y:26px * root.s;width:190px * root.s;height:48px * root.s;border-radius:14px;border-width:1px;border-color:root.line;background:#202032;
+            Image {x:16px;y:15px;width:18px;height:18px;source:@image-url("tabler/user-circle.svg");colorize:root.accent;}
+            Text {y:0px;x:45px;width:parent.width - 55px;height:100%;vertical-alignment:center;text:root.neutral ? "Sin sesión" : "Vista de diseño";font-family:"Inter";font-size:11px;color:root.ink;}
+            TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=4;}}
+        }
+        for label[i] in ["JUGAR","INSTANCIAS","MODS","AJUSTES","CUENTA"] : Rectangle {
+            x:root.pad + i * (root.width < 1100px ? 136px : 155px) * root.s;y:98px * root.s;
+            width:(root.width < 1100px ? 126px : 145px) * root.s;height:40px * root.s;
+            background:root.active-tab == i ? #8cdaea12 : transparent;
+            Rectangle {x:0px;visible:root.active-tab == i;y:parent.height - 3px;width:parent.width;height:3px;background:root.accent;}
+            Text {x:0px;y:0px;width:100%;height:100%;text:label;font-family:"Inter";font-size:11px * root.s;font-weight:700;letter-spacing:1.2px;color:root.active-tab == i ? root.accent : root.muted;vertical-alignment:center;horizontal-alignment:center;}
+            TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=i;}}
+        }
+    }
+    if root.active-tab == 0 : Rectangle {
+        x:root.pad;y:175px * root.s;width:parent.width - 2 * root.pad;height:parent.height - 255px * root.s;
+        Text {x:0px;y:0px;text:"TUS INSTANCIAS";font-family:"Inter";font-size:10px * root.s;letter-spacing:2px;color:root.muted;}
+        for name[i] in ["Vanilla","Fabric","NeoForge"] : Rectangle {x:0px;
+            y:(34px + i * 112px) * root.s;width:root.left-w;height:96px * root.s;
+            border-radius:18px * root.s;border-width:1px;border-color:root.selected-instance == i ? root.accent.with-alpha(0.55) : root.line;
+            background:root.selected-instance == i ? #223341 : root.panel;
+            Rectangle {x:19px * root.s;y:22px * root.s;width:4px * root.s;height:49px * root.s;border-radius:2px;background:root.selected-instance == i ? root.accent : #49485e;}
+            Text {x:38px * root.s;y:21px * root.s;text:name;font-family:"Unbounded";font-size:17px * root.s;font-weight:600;color:root.selected-instance == i ? root.ink : #c0c0ce;}
+            Text {x:38px * root.s;y:57px * root.s;text:i == 0 ? "Minecraft / sin mods" : i == 1 ? "Ligero y personalizable" : "Tu colección de mods";font-family:"Inter";font-size:11px * root.s;color:root.muted;}
+            TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.selected-instance=i;}}
+        }
+        Rectangle {x:0px;y:384px * root.s;width:root.left-w;height:52px * root.s;border-radius:14px * root.s;border-width:1px;border-color:root.line;background:#171826a0;
+            Image {x:20px;y:17px;width:18px;height:18px;source:@image-url("tabler/plus.svg");colorize:root.muted;}
+            Text {y:0px;x:49px;width:parent.width - 65px;height:100%;text:"Gestionar instancias";vertical-alignment:center;font-family:"Inter";font-size:12px;color:root.muted;}
+            TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=1;}}
+        }
+        Rectangle {x:0px;y:parent.height - 82px * root.s;width:root.left-w;height:72px * root.s;border-radius:18px * root.s;background:#8cdaea;
+            Image {x:25px * root.s;y:25px * root.s;width:22px * root.s;height:22px * root.s;source:@image-url("tabler/player-play.svg");colorize:#10202a;}
+            Text {x:63px * root.s;y:0px;width:parent.width - 80px * root.s;height:100%;text:"JUGAR";font-family:"Unbounded";font-size:18px * root.s;font-weight:700;letter-spacing:3px;color:#10202a;vertical-alignment:center;}
+            // Deliberately no launch callback in this design-only proposal.
+        }
+        // Character occupies the open center rather than a small sidebar card.
+        center-panel := Rectangle {y:0px;
+            x:root.left-w + 26px * root.s;width:parent.width - root.left-w - (root.wide ? root.right-w : 0px) - 52px * root.s;
+            height:parent.height;background:transparent;
+            Rectangle {x:parent.width * 0.1;y:parent.height * 0.83;width:80%;height:1px;background:#8cdaea3b;}
+            Image {x:parent.width * -0.02;y:parent.height * -0.08;width:104%;height:96%;source:root.player-render;image-fit:contain;}
+            Text {x:0px;y:parent.height - 68px * root.s;width:100%;text:root.neutral ? "TU HISTORIA EMPIEZA AQUÍ" : "LISTO PARA TU PRÓXIMO MUNDO";font-family:"Inter";font-size:11px * root.s;font-weight:700;letter-spacing:1.6px;color:root.ink;horizontal-alignment:center;}
+            Text {x:0px;y:parent.height - 39px * root.s;width:100%;text:root.neutral ? "Figura genérica / sin cuenta premium" : "Skin de demostración / no es tu cuenta";font-family:"Inter";font-size:10px * root.s;color:root.muted;horizontal-alignment:center;}
+        }
+        if root.wide : Rectangle {y:0px;
+            x:parent.width - root.right-w;width:root.right-w;height:parent.height;
+            Rectangle {x:0px;y:0px;width:100%;height:177px * root.s;background:root.panel;border-radius:18px * root.s;border-width:1px;border-color:root.line;
+                Text {x:24px * root.s;y:22px * root.s;text:"PERFIL SELECCIONADO";font-family:"Inter";font-size:9px * root.s;letter-spacing:1.6px;color:root.muted;}
+                Text {x:24px * root.s;y:54px * root.s;text:root.instance;font-family:"Unbounded";font-size:21px * root.s;font-weight:600;color:root.ink;}
+                Text {x:24px * root.s;y:101px * root.s;width:parent.width - 48px * root.s;text:"El estado de instalación y la versión real aparecerán aquí.";wrap:word-wrap;font-family:"Inter";font-size:12px * root.s;color:root.muted;}
+            }
+            Rectangle {x:0px;y:197px * root.s;width:100%;height:193px * root.s;background:root.panel;border-radius:18px * root.s;border-width:1px;border-color:root.line;
+                Text {x:24px * root.s;y:22px * root.s;text:"TU IDENTIDAD";font-family:"Inter";font-size:9px * root.s;letter-spacing:1.6px;color:root.muted;}
+                Text {x:24px * root.s;y:56px * root.s;text:root.neutral ? "Modo local" : "Cuenta Microsoft";font-family:"Inter";font-size:19px * root.s;font-weight:600;color:root.ink;}
+                Text {x:24px * root.s;y:92px * root.s;width:parent.width - 48px * root.s;text:root.neutral ? "Inicia sesión para mostrar tu skin de Minecraft." : "Vista previa. No se ha accedido a ninguna cuenta.";wrap:word-wrap;font-family:"Inter";font-size:12px * root.s;color:root.muted;}
+                Text {x:24px * root.s;y:153px * root.s;text:"ABRIR CUENTA  >";font-family:"Inter";font-size:10px * root.s;font-weight:700;letter-spacing:1px;color:root.accent;}
+                TouchArea {x:0px;y:0px;mouse-cursor:pointer;clicked=>{root.active-tab=4;}}
+            }
+            Text {x:4px;y:425px * root.s;width:parent.width - 8px;text:"Sin rangos, misiones ni recompensas inventadas. Solo información del launcher.";wrap:word-wrap;font-family:"Inter";font-size:11px * root.s;color:root.muted;}
+        }
+    }
+    if root.active-tab != 0 : Rectangle {
+        x:root.pad;y:175px * root.s;width:parent.width - 2 * root.pad;height:parent.height - 255px * root.s;
+        Text {x:0px;y:0px;text:root.active-tab == 1 ? "Instancias" : root.active-tab == 2 ? "Mods" : root.active-tab == 3 ? "Ajustes" : "Cuenta";font-family:"Unbounded";font-size:30px * root.s;font-weight:600;color:root.ink;}
+        Rectangle {x:0px;y:80px * root.s;width:parent.width;height:parent.height - 100px * root.s;border-radius:22px;border-width:1px;border-color:root.line;background:root.panel;
+            Text {x:32px;y:32px;width:parent.width - 64px;text:"Propuesta de navegación. Esta pantalla aún no está integrada con las funciones del launcher.";font-family:"Inter";font-size:17px;color:root.ink;wrap:word-wrap;}
+            Text {x:32px;y:105px;width:parent.width - 64px;text:"Primero el diseño del lobby. Después, los controles y datos reales, sin perder perfiles ni ajustes.";font-family:"Inter";font-size:14px;color:root.muted;wrap:word-wrap;}
+        }
+    }
+    Rectangle {x:0px;y:parent.height - 50px * root.s;width:parent.width;height:50px * root.s;background:#0c0d18ed;
+        Text {y:0px;x:root.pad;height:100%;vertical-alignment:center;text:"ANDROMEDA  /  PROPUESTA DE LOBBY";font-family:"Inter";font-size:9px * root.s;letter-spacing:1.3px;color:root.muted;}
+        Text {y:0px;x:parent.width - 337px * root.s;width:297px * root.s;height:100%;vertical-alignment:center;text:"Datos y skin de ejemplo / sin conexión";font-family:"Inter";font-size:10px * root.s;color:root.muted;horizontal-alignment:right;}
+    }
+}
