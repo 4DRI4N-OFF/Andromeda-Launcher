@@ -72,3 +72,12 @@ Sources read for feasibility:
 - https://github.com/bs-community/skinview3d
 
 The API guides are community documentation, not a vendor stability promise.
+
+
+## Night scene choice, 01:52 Nov 12
+The user chose a Minecraft-at-night backdrop. Replaced the quiet space image in
+the proposal only with original generated voxel-night artwork: square moon,
+layered block mountains, trees, blue fog and warm lights. It is a flat background
+illustration with depth cues, not a live 3D world and not a game screenshot.
+The model in front remains actual geometry. Background uses proportional cover
+cropping, not stretching. No copyrighted game assets were imported.

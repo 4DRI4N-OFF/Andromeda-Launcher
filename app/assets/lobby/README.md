@@ -1,0 +1,1 @@
+Original generated voxel night illustration made for Andromeda on 2026-11-12. Not a Minecraft screenshot. No Mojang or Warzone assets imported. Generated flat background, not a realtime 3D world. Fit with proportional cover cropping, never stretched.

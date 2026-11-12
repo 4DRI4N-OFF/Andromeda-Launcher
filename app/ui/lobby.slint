@@ -14,19 +14,19 @@ export component LobbyWindow inherits Window {
     property <color> ink:#f2f2fa;
     property <color> muted:#a5a6b8;
     property <color> accent:#8cdaea;
-    property <color> panel:#141522dd;
+    property <color> panel:#111521eb;
     property <color> line:#ffffff16;
     property <length> pad:40px * s;
     property <length> left-w:315px * s;
     property <length> right-w:310px * s;
     property <bool> wide:self.width >= 1220px;
     property <string> instance:selected-instance == 0 ? "Vanilla" : selected-instance == 1 ? "Fabric" : "NeoForge";
-    Image {x:0px;y:0px;width:parent.width;height:parent.height;source:@image-url("shell/galaxy.png");image-fit:cover;opacity:0.28;}
-    Rectangle {x:0px;y:0px;width:parent.width;height:parent.height;background:@linear-gradient(0deg,#080911ed,#10122300);}
+    Image {x:0px;y:138px * root.s;width:parent.width;height:parent.height - 138px * root.s;source:@image-url("../assets/lobby/voxel-night.png");image-fit:cover;opacity:1;}
+    Rectangle {x:0px;y:0px;width:parent.width;height:parent.height;background:@linear-gradient(0deg,#080911b0,#10122312);}
     // Quiet vertical divisions give depth without importing a game's backdrop.
     Rectangle {x:parent.width * 0.42;y:parent.height * 0.19;width:1px;height:67%;background:#8cdaea0a;}
     Rectangle {x:parent.width * 0.72;y:parent.height * 0.19;width:1px;height:67%;background:#8cdaea0a;}
-    Rectangle {x:0px;y:0px;height:138px * root.s;width:parent.width;background:#0e101bdc;
+    Rectangle {x:0px;y:0px;height:138px * root.s;width:parent.width;background:#0e101be8;
         Image {x:root.pad;y:28px * root.s;width:230px * root.s;height:29px * root.s;source:@image-url("branding/andromeda-light.svg");image-fit:contain;}
         Text {x:root.pad;y:71px * root.s;text:"TU MUNDO. A TU MANERA.";font-family:"Inter";font-size:9px * root.s;letter-spacing:2px;color:root.muted;}
         Rectangle {x:parent.width - root.pad - 190px * root.s;y:26px * root.s;width:190px * root.s;height:48px * root.s;border-radius:14px;border-width:1px;border-color:root.line;background:#202032;
