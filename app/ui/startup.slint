@@ -1,5 +1,5 @@
 export struct StartupGlyph { visible: bool, x: float, y: float, sx: float, sy: float }
-export component StartupLogo inherits Rectangle {
+component StartupLogoShape inherits Rectangle {
     background: transparent;
     in property <[StartupGlyph]> glyphs;
     in property <float> planet-x: 960;
@@ -75,6 +75,35 @@ export component StartupLogo inherits Rectangle {
 
 
 }
+// A single global light band, clipped to the exact accepted vector geometry.
+// Solid strip fills work on Slint's software and GPU renderers alike.
+export component StartupLogo inherits Rectangle {
+    background: transparent;
+    in property <[StartupGlyph]> glyphs;
+    in property <float> planet-x: 960;
+    in property <float> planet-y: 540;
+    in property <float> planet-size: 650;
+    in property <bool> occlude: true;
+    in property <image> cover-mask;
+    in property <color> ink: white;
+    in property <bool> loading: false;
+    in property <float> sheen: -1;
+    property <float> unit: self.width / 1920px;
+    StartupLogoShape { width: root.width; height: root.height;
+        glyphs: root.glyphs;planet-x:root.planet-x;planet-y:root.planet-y;planet-size:root.planet-size;
+        occlude:root.occlude;cover-mask:root.cover-mask;ink:root.ink;loading:root.loading;
+    }
+    if root.sheen >= 0 : Rectangle { width:root.width;height:root.height;
+        for shade[i] in [#ffffff,#fdfcff,#f7f4ff,#eee8ff,#e4daff,#d9ccff,#d0c0ff,#cab8ff,#c8b5ff,#cab8ff,#d0c0ff,#d9ccff,#e4daff,#eee8ff,#f7f4ff,#fdfcff,#ffffff,#fdfcff,#f7f4ff,#eee8ff,#e4daff,#d9ccff,#d0c0ff,#cab8ff,#c8b5ff,#cab8ff,#d0c0ff,#d9ccff,#e4daff,#eee8ff,#f7f4ff,#fdfcff,#ffffff] : Rectangle {
+            x: (root.sheen + (i - 16.5) * 5.5) * root.unit * 1px;
+            width: 5.5 * root.unit * 1px; height:root.height; clip:true;
+            StartupLogoShape { x:-parent.x; width:root.width;height:root.height;
+                glyphs:root.glyphs;planet-x:root.planet-x;planet-y:root.planet-y;planet-size:root.planet-size;
+                occlude:false;ink:shade;
+            }
+        }
+    }
+}
 export component SplashWindow inherits Window {
     preferred-width: 1248px; preferred-height: 702px; no-frame: true; always-on-top:true; background: black; title: "Andromeda";
     callback retry;
@@ -85,6 +114,7 @@ export component SplashWindow inherits Window {
     in property <bool> letters-visible: false;
     in property <float> ambience: 0;
     in property <image> cover-mask;
+    in property <float> sheen: -1;
     // Lock accepted logo proportions while the native surface grows around it.
     in property <float> locked-logo-width: 0;
     Rectangle { width: parent.width; height: parent.height; background: #080611; clip: true;
@@ -94,7 +124,7 @@ export component SplashWindow inherits Window {
             width: root.locked-logo-width > 0 ? root.locked-logo-width * 1px : parent.width; height: root.locked-logo-width > 0 ? self.width * 9 / 16 : parent.height;
             occlude: root.locked-logo-width <= 0; glyphs: root.letters-visible ? root.glyphs : [];
             planet-x: root.planet-x; planet-y: root.planet-y; planet-size: root.planet-size;
-            loading: !root.letters-visible;cover-mask:root.cover-mask; }
+            loading: !root.letters-visible;cover-mask:root.cover-mask; sheen: root.sheen; }
     }
     if root.failure != "" : Rectangle { width:100%;height:100%;background:#100b20;
         Text { x:24px;y:parent.height / 2 - 120px;width:parent.width - 48px;height:120px;text:root.failure;wrap:word-wrap;color:white;font-size:16px; }

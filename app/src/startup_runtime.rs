@@ -25,7 +25,7 @@ pub fn run(dir:PathBuf)->Result<(),slint::PlatformError>{
  let r=Rc::new(RefCell::new(Runtime {log_guard:None,splash,main:None,gate:Gate::new(false),dir,cancel:Arc::new(AtomicBool::new(false)),rendered:Arc::new(AtomicBool::new(false)),timer:slint::Timer::default(),started:Instant::now(),intro_start:None,handoff_start:None,origin:(0.,0.,720.),screen_origin:(0,0,720),waiting_since:None,resize:None,resize_started:None,resize_tick:None,logo_box:None}));
  ACTIVE.with(|a|*a.borrow_mut()=Some(r.clone()));
  {
-  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();r.resize=None;r.resize_started=None;r.resize_tick=None;r.logo_box=None;r.splash.set_locked_logo_width(0.);if let Some(p)=crate::startup_placement::current(){r.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));r.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));}r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_ambience(0.65);r.splash.set_cover_mask(slint::Image::default());r.load();}}));
+  let rt=r.borrow();rt.splash.on_retry(||with_active(|r|{if r.gate.retry().is_some(){r.cancel=Arc::new(AtomicBool::new(false));r.splash.set_failure("".into());r.started=Instant::now();r.resize=None;r.resize_started=None;r.resize_tick=None;r.logo_box=None;r.splash.set_locked_logo_width(0.);r.splash.set_sheen(-1.);if let Some(p)=crate::startup_placement::current(){r.splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));r.splash.window().set_position(slint::PhysicalPosition::new(p.x,p.y));}r.splash.set_letters_visible(false);r.splash.set_planet_x(960.);r.splash.set_planet_y(540.);r.splash.set_planet_size(650.);r.splash.set_ambience(0.65);r.splash.set_cover_mask(slint::Image::default());r.load();}}));
   rt.splash.on_cancel(||with_active(|r|r.close()));
   rt.splash.window().on_close_requested(||{with_active(|r|r.close());slint::CloseRequestResponse::KeepWindowShown});
   rt.timer.start(slint::TimerMode::Repeated,Duration::from_millis(16),||with_active(|r|r.tick()));
@@ -130,10 +130,11 @@ impl Runtime {
      self.splash.set_ambience(level);return;
     };
     self.splash.set_ambience(0.);let t=elapsed.as_secs_f64();let st=startup::frame(t);
+    self.splash.set_sheen(crate::startup_sheen::position(t,false));
     self.splash.set_letters_visible(true);self.splash.set_planet_x(st.x as f32);self.splash.set_planet_y(st.y as f32);self.splash.set_planet_size(st.size as f32);
     self.splash.set_cover_mask(startup_cover::cover(st.x,st.y,st.size,720,405));
     self.splash.set_glyphs(slint::ModelRc::new(slint::VecModel::from(st.glyphs.iter().map(|g|ui::StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
-    if t>=startup::INTRO_SECONDS && self.grow_splash(){self.gate.accept(attempt,Event::IntroFinished);self.show_main();}
+    if t>=crate::startup_sheen::END && self.grow_splash(){self.gate.accept(attempt,Event::IntroFinished);self.show_main();}
    },
    Stage::AwaitingMainFrame=>{
     if self.waiting_since.is_some_and(|t|t.elapsed()>Duration::from_secs(8)){self.fail("El launcher no ha dibujado su primer fotograma. Puedes reintentar sin cambiar tus datos.".into());return;}

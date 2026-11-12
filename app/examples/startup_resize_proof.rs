@@ -2,6 +2,8 @@
 use slint::{platform::{software_renderer::{MinimalSoftwareWindow,RepaintBufferType},Platform,WindowAdapter},ComponentHandle,Rgb8Pixel};
 use std::rc::Rc;
 #[path="../src/startup.rs"]mod startup;
+#[path="../src/startup_cover.rs"]mod startup_cover;
+#[path="../src/startup_sheen.rs"]mod startup_sheen;
 #[path="../src/startup_placement.rs"]mod startup_placement;
 #[path="../src/startup_resize.rs"]mod startup_resize;
 slint::include_modules!();
@@ -25,17 +27,22 @@ fn main()->Result<(),slint::PlatformError>{
  splash.set_planet_x(end.x as f32);splash.set_planet_y(end.y as f32);splash.set_planet_size(end.size as f32);splash.set_locked_logo_width(1248.);
 
  let motion=startup_resize::Resize{from:startup_placement::fit(0,0,1920,1040).unwrap(),to:startup_placement::fit_main(0,0,1920,1040).unwrap()};
- for f in 0..90{
+ for f in 0..168{
   let time=f as f32/30.;
-  if time<1.15{
-   let p=motion.at((time-0.5)/startup_resize::SECONDS);splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));splash.show()?;
+  let growth=startup_sheen::END as f32;let handoff=growth+startup_resize::SECONDS;
+  if time<handoff{
+   let st=startup::frame(time as f64);splash.set_planet_x(st.x as f32);splash.set_planet_y(st.y as f32);splash.set_planet_size(st.size as f32);
+   splash.set_glyphs(slint::ModelRc::new(slint::VecModel::from(st.glyphs.iter().map(|g|splash::StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
+   splash.set_cover_mask(startup_cover::cover(st.x,st.y,st.size,720,405));splash.set_sheen(startup_sheen::position(time as f64,false));
+   splash.set_locked_logo_width(if time>=growth{1248.}else{0.});
+   let p=motion.at((time-growth)/startup_resize::SECONDS);splash.window().set_size(slint::PhysicalSize::new(p.width,p.height));splash.show()?;
    capture(&w,&format!("resize-proof/frame-{f:03}.bmp"),p.width as usize,p.height as usize);
   }else{
    if main.is_none(){let ui=MainWindow::new()?; ui.set_startup_glyphs(slint::ModelRc::new(slint::VecModel::from(end.glyphs.iter().map(|g|StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
 main=Some(ui);}
    let ui=main.as_ref().unwrap();
    ui.window().set_size(slint::PhysicalSize::new(1728,936));ui.show()?;
-   let t=((time-1.15)/0.55).clamp(0.,1.);let q=startup_resize::ease(t);let scale=ui.get_startup_dest_width()/1120.24;
+   let t=((time-handoff)/0.55).clamp(0.,1.);let q=startup_resize::ease(t);let scale=ui.get_startup_dest_width()/1120.24;
    let ex=ui.get_startup_dest_x()-400.28*scale;let ey=ui.get_startup_dest_y()+(28.-75.*ui.get_startup_dest_width()/836.)/2.-456.34*scale;
    ui.set_startup_overlay(t<1.);ui.set_startup_reveal(startup_resize::ease((t/0.65).min(1.)));
    ui.set_startup_x(240.+(ex-240.)*q);ui.set_startup_y(117.+(ey-117.)*q);ui.set_startup_width(1248.+(1920.*scale-1248.)*q);
@@ -43,5 +50,5 @@ main=Some(ui);}
    capture(&w,&format!("resize-proof/frame-{f:03}.bmp"),1728,936);
   }
  }
- println!("90 actual Slint offscreen frames; native resize/DWM not tested");Ok(())
+ println!("168 actual Slint offscreen frames; native resize/DWM not tested");Ok(())
 }

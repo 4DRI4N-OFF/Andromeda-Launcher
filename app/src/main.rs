@@ -14,6 +14,7 @@ mod startup_cover;
 mod startup_runtime;
 mod startup_placement;
 mod startup_resize;
+mod startup_sheen;
 mod motion_ui;
 mod native_login;
 mod theme_ui;
