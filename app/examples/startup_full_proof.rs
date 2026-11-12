@@ -18,11 +18,11 @@ fn main()->Result<(),slint::PlatformError>{
  let w=MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);slint::platform::set_platform(Box::new(Offscreen(w.clone()))).unwrap();let ui=MainWindow::new()?;
  std::fs::create_dir_all("startup-full-proof").unwrap();
  ui.set_startup_glyphs(slint::ModelRc::new(slint::VecModel::from(startup::frame(2.1).glyphs.iter().map(|g|StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
- for (width,height) in [(1600,900),(1100,700),(860,620)] {
+ for (width,height) in [(1728,936),(1600,900),(1100,700),(860,620)] {
   ui.window().set_size(slint::PhysicalSize::new(width,height));ui.show()?;
-  for step in 0..=20 {let q=step as f32/20.;let scale=ui.get_startup_dest_width()/1120.24;let ex=ui.get_startup_dest_x()-400.28*scale;let ey=ui.get_startup_dest_y()+(28.-75.*ui.get_startup_dest_width()/836.)/2.-456.34*scale;
+  for step in 0..=20 {let sw=if width==1728{1248.}else{720.};let sh=sw*9./16.;let q=step as f32/20.;let scale=ui.get_startup_dest_width()/1120.24;let ex=ui.get_startup_dest_x()-400.28*scale;let ey=ui.get_startup_dest_y()+(28.-75.*ui.get_startup_dest_width()/836.)/2.-456.34*scale;
    let end=ui.global::<ThemePalette>().get_text_color();let mix=|v:u8|(255.+(v as f32-255.)*q).round()as u8;ui.set_startup_ink(slint::Color::from_rgb_u8(mix(end.red()),mix(end.green()),mix(end.blue())));
-   ui.set_startup_overlay(true);ui.set_startup_x((width as f32-720.)/2.*(1.-q)+ex*q);ui.set_startup_y((height as f32-405.)/2.*(1.-q)+ey*q);ui.set_startup_width(720.*(1.-q)+1920.*scale*q);
+   ui.set_startup_overlay(true);ui.set_startup_x((width as f32-sw)/2.*(1.-q)+ex*q);ui.set_startup_y((height as f32-sh)/2.*(1.-q)+ey*q);ui.set_startup_width(sw*(1.-q)+1920.*scale*q);
    capture(&w,&format!("startup-full-proof/handoff-{width}-{step:02}.bmp"),width as usize,height as usize);
   }
   ui.set_startup_overlay(false);capture(&w,&format!("startup-full-proof/ready-{width}.bmp"),width as usize,height as usize);
@@ -30,7 +30,7 @@ fn main()->Result<(),slint::PlatformError>{
  let theme_timer=std::rc::Rc::new(slint::Timer::default());
  for pack in andromeda_core::themes::builtins() {
   theme_ui::apply(&ui,&pack,false,&theme_timer);
-  for (width,height) in [(1600,900),(1100,700),(860,620)] {
+  for (width,height) in [(1728,936),(1600,900),(1100,700),(860,620)] {
    ui.window().set_size(slint::PhysicalSize::new(width,height));
    let scale=ui.get_startup_dest_width()/1120.24;let ex=ui.get_startup_dest_x()-400.28*scale;let ey=ui.get_startup_dest_y()+(28.-75.*ui.get_startup_dest_width()/836.)/2.-456.34*scale;
    ui.set_startup_ink(ui.global::<ThemePalette>().get_text_color());ui.set_startup_overlay(true);ui.set_startup_x(ex);ui.set_startup_y(ey);ui.set_startup_width(1920.*scale);

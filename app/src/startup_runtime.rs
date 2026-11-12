@@ -79,8 +79,15 @@ impl Runtime {
   self.rendered.store(false,Ordering::Release);
   main.ui.set_startup_overlay(true);
   let sp=self.splash.window().position();let ss=self.splash.window().size();
-  let ms=main.ui.window().size();
-  main.ui.window().set_position(slint::PhysicalPosition::new(sp.x+(ss.width as i32-ms.width as i32)/2,sp.y+(ss.height as i32-ms.height as i32)/2));
+  if let Some(p)=crate::startup_placement::main_at(sp.x+ss.width as i32/2,sp.y+ss.height as i32/2){
+   main.ui.window().set_size(slint::PhysicalSize::new(p.width,p.height));
+   main.ui.window().set_position(slint::PhysicalPosition::new(p.x,p.y));
+  }else{
+   // If monitor lookup fails, still make the principal window larger.
+   main.ui.window().set_size(slint::PhysicalSize::new(ss.width.saturating_mul(5)/4,ss.height.saturating_mul(5)/4));
+   let ms=main.ui.window().size();
+   main.ui.window().set_position(slint::PhysicalPosition::new(sp.x+(ss.width as i32-ms.width as i32)/2,sp.y+(ss.height as i32-ms.height as i32)/2));
+  }
   if let Err(e)=main.ui.show(){self.fail(format!("No se pudo mostrar el launcher: {e}"));return;}
   let mp=main.ui.window().position();let sf=main.ui.window().scale_factor();
   self.screen_origin=(sp.x,sp.y,ss.width);

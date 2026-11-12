@@ -81,3 +81,19 @@ edge antialiasing differences as before (maximum 60 extra thresholded pixels).
 All 126 1248x702 intro frames were visually inspected. All 22 loading/fade/static
 fixtures are unchanged. Nineteen same-size theme/end/DPI fixtures are
 pixel-identical. No desktop window was opened for these checks.
+
+
+## Nov 12: larger principal window
+The splash remains unchanged. Before showing the principal window, find the work
+area of the monitor containing the splash center and size the principal window
+to 90% on each axis, centered in that work area. This is independent of the splash
+(65% preferred width, limited to 85% on each axis). No maximization is requested.
+1920x1040 work area: splash 1248x702, main client 1728x936. Existing first-frame
+and DPI correction still read the actual physical sizes/positions after showing.
+Monitor lookup fallback uses 125% of splash size. No desktop test was performed.
+
+Larger-window verification: Windows build passed; 94 workspace tests passed
+(25 app, 69 core), including main size, same-monitor bounds, negative origins,
+portrait and small displays. Offscreen 1728x936 handoff frames and final layout
+reviewed. The composite size comparison is an illustration from fixtures, not
+a screenshot from the user's desktop. Actual desktop/DPI remains unverified.

@@ -12,7 +12,16 @@ pub fn fit(left:i32,top:i32,right:i32,bottom:i32)->Option<Placement>{
  let width=units*16;let height=units*9;
  Some(Placement{x:left+(w-width as i32)/2,y:top+(h-height as i32)/2,width,height})
 }
-#[cfg(windows)] pub fn current()->Option<Placement>{
+// Main window has its own work-area-relative size. It is intentionally larger
+// than the splash on both axes, without requesting maximization.
+pub fn fit_main(left:i32,top:i32,right:i32,bottom:i32)->Option<Placement>{
+ let w=right.checked_sub(left)?;let h=bottom.checked_sub(top)?;
+ if w<32||h<18{return None;}
+ let width=(w as f64*0.90).floor()as u32;
+ let height=(h as f64*0.90).floor()as u32;
+ Some(Placement{x:left+(w-width as i32)/2,y:top+(h-height as i32)/2,width,height})
+}
+#[cfg(windows)] fn monitor_area(at:Option<(i32,i32)>)->Option<(i32,i32,i32,i32)>{
  use std::ffi::c_void;
  #[repr(C)]#[derive(Default)]struct Point{x:i32,y:i32}
  #[repr(C)]#[derive(Default)]struct Rect{left:i32,top:i32,right:i32,bottom:i32}
@@ -26,14 +35,17 @@ pub fn fit(left:i32,top:i32,right:i32,bottom:i32)->Option<Placement>{
  unsafe{
   // Ask for unvirtualized physical monitor coordinates, restoring Slint's context.
   let old=SetThreadDpiAwarenessContext(-4isize as *mut c_void);
-  let mut point=Point::default();let cursor=GetCursorPos(&mut point)!=0;
+  let mut point=Point::default();let cursor=if let Some((x,y))=at{point=Point{x,y};true}else{GetCursorPos(&mut point)!=0};
   let monitor=MonitorFromPoint(point,if cursor{2}else{1});
   let mut info=Info{size:std::mem::size_of::<Info>()as u32,monitor:Rect::default(),work:Rect::default(),flags:0};
   let ok=GetMonitorInfoW(monitor,&mut info)!=0;
   if !old.is_null(){SetThreadDpiAwarenessContext(old);}
-  if ok{fit(info.work.left,info.work.top,info.work.right,info.work.bottom)}else{None}
+  if ok{Some((info.work.left,info.work.top,info.work.right,info.work.bottom))}else{None}
  }
 }
+#[cfg(windows)]pub fn current()->Option<Placement>{let(l,t,r,b)=monitor_area(None)?;fit(l,t,r,b)}
+#[cfg(windows)]pub fn main_at(x:i32,y:i32)->Option<Placement>{let(l,t,r,b)=monitor_area(Some((x,y)))?;fit_main(l,t,r,b)}
+#[cfg(not(windows))]pub fn main_at(_x:i32,_y:i32)->Option<Placement>{None}
 #[cfg(not(windows))]pub fn current()->Option<Placement>{None}
 #[cfg(test)]mod tests{
  use super::*;
@@ -41,5 +53,8 @@ pub fn fit(left:i32,top:i32,right:i32,bottom:i32)->Option<Placement>{
  #[test]fn secondary_negative_origin(){let a=fit(-2560,-300,0,1100).unwrap();assert_eq!(a.x,-2560+(2560-a.width as i32)/2);assert_eq!(a.y,-300+(1400-a.height as i32)/2);}
  #[test]fn physical_4k(){let p=fit(0,0,3840,2080).unwrap();assert_eq!((p.width,p.height),(2496,1404));}
  #[test]fn small_and_portrait_fit(){for(w,h)in[(1024,728),(800,560),(1080,1880),(1280,680)]{let p=fit(0,0,w,h).unwrap();assert_eq!(p.width*9,p.height*16);assert!(p.width as f64<=w as f64*0.85);assert!(p.height as f64<=h as f64*0.85);}}
+ #[test]fn main_is_larger_than_splash_on_both_axes(){for(l,t,r,b)in[(0,0,1920,1040),(0,0,3840,2080),(-2560,-300,0,1100),(0,0,1024,728),(0,0,800,560),(0,0,1080,1880),(0,0,1280,680)]{let splash=fit(l,t,r,b).unwrap();let main=fit_main(l,t,r,b).unwrap();assert!(main.width>splash.width);assert!(main.height>splash.height);assert!(main.x>=l&&main.y>=t);assert!(main.x+main.width as i32<=r);assert!(main.y+main.height as i32<=b);}}
+ #[test]fn main_1080_size(){let p=fit_main(0,0,1920,1040).unwrap();assert_eq!((p.x,p.y,p.width,p.height),(96,52,1728,936));}
+ #[test]fn main_invalid(){assert_eq!(fit_main(0,0,0,0),None);}
  #[test]fn invalid_area(){assert_eq!(fit(0,0,0,0),None);}
 }
