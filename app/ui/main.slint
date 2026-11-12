@@ -1,3 +1,4 @@
+import { StartupLogo, StartupGlyph } from "startup.slint";
 import { ScrollView } from "std-widgets.slint";
 
 // JetBrains Mono is embedded at build time so the launcher looks the same on a
@@ -382,6 +383,16 @@ export component MainWindow inherits Window {
     in-out property <bool> reduce-animations;
     in-out property <bool> dark-mode: true;
     in-out property <bool> intro-visible: false;
+    in property <bool> startup-overlay: false;
+    in property <float> startup-reveal: 1;
+    in property <color> startup-ink: white;
+    in property <[StartupGlyph]> startup-glyphs;
+    in property <float> startup-x: 0;
+    in property <float> startup-y: 0;
+    in property <float> startup-width: 720;
+    out property <float> startup-dest-x: 36 * root.design-scale;
+    out property <float> startup-dest-y: 50 * root.design-scale;
+    out property <float> startup-dest-width: root.width < 1142px ? max(110, 110 + (root.width / 1px - 860) * 0.567) : 270 * root.design-scale;
     in property <image> intro-frame;
     in property <[string]> profile-titles;
     in property <[string]> profile-details;
@@ -455,9 +466,9 @@ export component MainWindow inherits Window {
         width: 100%; height: 100%;
         Rectangle {
             x: 36px * root.design-scale; y: 30px * root.design-scale; width: parent.width - 72px * root.design-scale; height: 107px * root.design-scale;
-            Image { visible: root.width >= 1100px; x: 0px; y: 20px * root.design-scale; width: 270px * root.design-scale; height: 28px * root.design-scale; source: ThemePalette.background-style == "dawn" ? @image-url("branding/andromeda-dark.svg") : @image-url("branding/andromeda-light.svg"); image-fit: contain; }
-            Image { visible: root.width < 1100px; x: 8px; y: 20px; width: 40px; height: 28px; source: @image-url("branding/andromeda-mark.svg"); colorize: ThemePalette.text-color; image-fit: contain; }
-            Rectangle { x: parent.width - self.width; y: 5px * root.design-scale; width: 138px * root.design-scale; height: 69px * root.design-scale; border-radius: 35px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel;
+            Image { visible: root.startup-glyphs.length == 0 && !root.startup-overlay; x: 0px; y: 20px * root.design-scale; width: root.startup-dest-width * 1px; height: 28px * root.design-scale; source: ThemePalette.background-style == "dawn" ? @image-url("branding/andromeda-dark.svg") : @image-url("branding/andromeda-light.svg"); image-fit: contain; colorize:ThemePalette.text-color; }
+
+            Rectangle { x: parent.width - self.width; y: 5px * root.design-scale; width: (root.width < 1100px ? 120px : 138px) * root.design-scale; height: 69px * root.design-scale; border-radius: 35px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel;
                 Image { x: 17px * root.design-scale; y: 24px * root.design-scale; width: 24px * root.design-scale; height: 24px * root.design-scale; source: @image-url("tabler/user-circle.svg"); colorize: ThemePalette.accent; }
                 Text { x: 52px * root.design-scale; width: parent.width - 62px * root.design-scale; height: parent.height; text: root.use-microsoft ? "Microsoft" : root.local-name; overflow: elide; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; font-weight: 600; color: ThemePalette.text-color; }
                 TouchArea { mouse-cursor: pointer; clicked => { root.active-tab = 4; } }
@@ -738,35 +749,18 @@ export component MainWindow inherits Window {
         }
     }
 
-    // ---------------- intro overlay ----------------
-    Rectangle {
-        visible: root.intro-visible;
-        x: 0px;
-        y: 0px;
-        width: 100%;
-        height: 100%;
-        background: #10121d;
-
-        Image {
-            width: 100%;
-            height: 100%;
-            source: root.intro-frame;
-            image-fit: contain;
-        }
-
-        Text {
-            font-family: ThemePalette.body-font;
-            x: 0px;
-            y: parent.height - 48px;
-            width: parent.width;
-            text: @tr("Click to skip intro");
-            horizontal-alignment: center;
-            color: #9da2b8;
-            font-size: 13px;
-        }
-
-        TouchArea {
-            clicked => { root.intro-visible = false; }
-        }
+    // Cover menu until its first complete frame, then reveal without a white flash.
+    Rectangle { width: 100%; height: 100%; background: #080611; opacity: 1 - root.startup-reveal;
+        Image { width: 100%; height: 100%; source: @image-url("../assets/startup/backdrop.png"); image-fit: fill; }
+        TouchArea { enabled: root.startup-overlay; }
+    }
+    // Keep the same Path instances at the destination: no SVG/Path rasterization swap.
+    if root.startup-glyphs.length > 0 : StartupLogo {
+        property <float> dest-scale: root.startup-dest-width / 1120.24;
+        x: (root.startup-overlay ? root.startup-x : root.startup-dest-x - 400.28 * self.dest-scale) * 1px;
+        y: (root.startup-overlay ? root.startup-y : root.startup-dest-y + (28. - 75. * root.startup-dest-width / 836.) / 2. - 456.34 * self.dest-scale) * 1px;
+        width: (root.startup-overlay ? root.startup-width : 1920. * self.dest-scale) * 1px; height: self.width * 1080 / 1920;
+        glyphs: root.startup-glyphs; planet-x:480.96902125;planet-y:508.59999933;planet-size:160.76932338;
+        occlude:false;ink:root.startup-overlay ? root.startup-ink : ThemePalette.text-color;
     }
 }
