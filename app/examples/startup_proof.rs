@@ -27,7 +27,7 @@ fn main()->Result<(),slint::PlatformError>{
  ui.set_failure("No se pudo preparar el launcher. Tus archivos no se han cambiado.".into());capture(&w,"startup-proof/failure.bmp",720,405);
  for (ww,hh) in [(1248,702),(960,540),(2496,1404)] {
   ui.set_failure("".into());ui.window().set_size(slint::PhysicalSize::new(ww,hh));
-  for f in [0,56,125]{let st=startup::frame(f as f64/60.);ui.set_cover_mask(startup_cover::cover(st.x,st.y,st.size,720,405));ui.set_letters_visible(true);ui.set_planet_x(st.x as f32);ui.set_planet_y(st.y as f32);ui.set_planet_size(st.size as f32);ui.set_glyphs(slint::ModelRc::new(slint::VecModel::from(st.glyphs.iter().map(|g|StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));capture(&w,&format!("startup-proof/large-{ww}-{f:03}.bmp"),ww as usize,hh as usize);}
+  for f in 0..126{if ww!=1248 && ![0,56,125].contains(&f) {continue;}let st=startup::frame(f as f64/60.);ui.set_cover_mask(startup_cover::cover(st.x,st.y,st.size,720,405));ui.set_letters_visible(true);ui.set_planet_x(st.x as f32);ui.set_planet_y(st.y as f32);ui.set_planet_size(st.size as f32);ui.set_glyphs(slint::ModelRc::new(slint::VecModel::from(st.glyphs.iter().map(|g|StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));capture(&w,&format!("startup-proof/large-{ww}-{f:03}.bmp"),ww as usize,hh as usize);}
  }
  println!("Native startup proof rendered 40 loader and 126 intro frames, 720x405. No real window opened.");Ok(())
 }

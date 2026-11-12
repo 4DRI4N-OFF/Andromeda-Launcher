@@ -55,3 +55,29 @@ Windows API references:
 ## Colored breathing background
 
 During static-icon preparation, a precomputed violet/indigo/magenta backdrop blends over the original at0.65+0.2*sin(2*pi*t/2.8). Only texture opacity changes; no particles, network, runtime blur or background generation. No per-frame occlusion image is allocated while waiting because no glyphs need hiding. Once prepared, the current level fades to zero over300ms while the icon remains fixed; then the original v23 begins with its unchanged background, logo and handoff. Twenty breathing/link renders were inspected; the last link and first v23 frame match pixel-for-pixel. Actual desktop timing/performance still needs the owner's test.
+
+
+## Nov 12: hide the v23 train with a native clip
+
+Adrian reported hidden letters briefly showing behind the planet. The previous
+composition still drew all nine letters, then painted a background-coloured RGBA
+image over the left half-plane and planet silhouette. The 126 software-rendered
+frames matched the accepted v23 video, so the reported desktop transient has not
+been independently reproduced. Do not claim the breathing backdrop caused it.
+
+The left half-plane now clips the glyph subtree before drawing it. This is the
+same x < planet-x clipping rule in v23's original SVG mask. The existing exact
+silhouette cover remains for the planet's ring holes. No timeline, glyph position,
+planet geometry, breathing/fade setting or main-window handoff changed. With
+occlude=false (main-window logo), the wrapper has zero offset and no clip.
+
+Only offscreen checks are allowed for this revision. Final desktop confirmation
+is still the user's manual check, not established by a successful build.
+
+Verification: Windows debug build passed; workspace tests 22 app + 69 core passed.
+All 126 new 720x405 intro frames are pixel-identical to the previous accepted
+native implementation; comparison against v23 MP4 frames shows only the same
+edge antialiasing differences as before (maximum 60 extra thresholded pixels).
+All 126 1248x702 intro frames were visually inspected. All 22 loading/fade/static
+fixtures are unchanged. Nineteen same-size theme/end/DPI fixtures are
+pixel-identical. No desktop window was opened for these checks.

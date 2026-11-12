@@ -10,6 +10,15 @@ export component StartupLogo inherits Rectangle {
     in property <color> ink: white;
     in property <bool> loading: false;
     property <float> unit: self.width / 1920px;
+    // The accepted v23 left half-plane is a real clip, not painted over text.
+    // Hidden glyphs never reach the renderer, even during texture uploads.
+    glyph-clip := Rectangle {
+        x: root.occlude ? root.planet-x * root.unit * 1px : 0px;
+        width: max(0px, root.width - self.x); height: root.height;
+        background: transparent; clip: root.occlude;
+        Rectangle {
+            x: -glyph-clip.x; width: root.width; height: root.height;
+            background: transparent;
     Path { visible: root.glyphs.length > 0 && root.glyphs[0].visible; x: root.glyphs[0].x * root.unit * 1px; y: (root.glyphs[0].y - 100 * root.glyphs[0].sy) * root.unit * 1px;
         width: 200 * root.glyphs[0].sx * root.unit * 1px; height: 100 * root.glyphs[0].sy * root.unit * 1px;
         viewbox-x: 0; viewbox-y: -100; viewbox-width: 200; viewbox-height: 100; fit: fill; fill: root.ink;
@@ -54,6 +63,8 @@ export component StartupLogo inherits Rectangle {
         width: 200 * root.glyphs[8].sx * root.unit * 1px; height: 100 * root.glyphs[8].sy * root.unit * 1px;
         viewbox-x: 0; viewbox-y: -100; viewbox-width: 200; viewbox-height: 100; fit: fill; fill: root.ink;
         commands: "M24.067861372070315 -16.06029290527344V-34.589284233398445H81.47966067138672V-16.06029290527344H24.067861372070315ZM68.3776812841797 -83.415 106.34827345947267 0.0H81.72452931396485L49.89318067138672 -73.58332578125001H56.566339941406255L24.734991298828128 0.0H0.11124715332031251L38.081839328613285 -83.415H68.3776812841797Z";
+    }
+        }
     }
     Image { visible: root.occlude; width: parent.width;height:parent.height;source:root.cover-mask;image-fit:fill; }
     Path { visible: true; x: (root.planet-x - root.planet-size / 2) * root.unit * 1px; y: (root.planet-y - root.planet-size / 2) * root.unit * 1px;
