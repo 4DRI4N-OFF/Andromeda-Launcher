@@ -144,7 +144,7 @@ pub fn prepare_in_game_dir(
     memory_mb: u32,
     game: &Path,
 ) -> Result<LaunchPlan> {
-    prepare_identity(root, version, name, memory_mb, game, None)
+    prepare_identity(root, version, name, memory_mb, game, None, None)
 }
 
 pub fn prepare_authenticated(
@@ -164,7 +164,82 @@ pub fn prepare_authenticated(
         memory_mb,
         game,
         Some(session),
+        None,
     )
+}
+/// Fabric uses the same verified vanilla base and optional checked account.
+/// Libraries are installed to a separate cache, never the selected game directory.
+pub fn prepare_fabric(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    loader: &str,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some(ClientLoader::Fabric(loader)),
+    )
+}
+pub fn prepare_quilt(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    loader: &str,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some(ClientLoader::Quilt(loader)),
+    )
+}
+/// Pinned Forge-family launch, using only a dedicated installer cache.
+pub fn prepare_upstream(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    kind: crate::upstream_install::Kind,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    let overlay = match kind {
+        crate::upstream_install::Kind::Forge => ClientLoader::Forge,
+        crate::upstream_install::Kind::NeoForge => ClientLoader::NeoForge,
+    };
+    prepare_identity(root, version, name, memory_mb, game, session, Some(overlay))
+}
+enum ClientLoader<'a> {
+    Fabric(&'a str),
+    Quilt(&'a str),
+    Forge,
+    NeoForge,
 }
 fn prepare_identity(
     root: &Path,
@@ -173,6 +248,7 @@ fn prepare_identity(
     memory_mb: u32,
     game: &Path,
     session: Option<&crate::auth::Session>,
+    fabric_loader: Option<ClientLoader<'_>>,
 ) -> Result<LaunchPlan> {
     if version != VERSION {
         return Err("Phase 2 currently supports installed vanilla 1.21.11 only".into());
@@ -212,7 +288,43 @@ fn prepare_identity(
     fs::create_dir_all(&game_dir)?;
     let natives = root.join("natives").join(version);
     fs::create_dir_all(&natives)?;
-    let mut classpath = Vec::new();
+    let mut library_directory = root.join("libraries");
+    let fabric = fabric_loader
+        .map(|loader| match loader {
+            ClientLoader::Fabric(loader) => {
+                crate::fabric_install::install(&root.join("fabric-libraries"), version, loader)
+            }
+            ClientLoader::Quilt(loader) => {
+                let q =
+                    crate::quilt_install::install(&root.join("quilt-libraries"), version, loader)?;
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: q.profile,
+                    libraries: q.libraries,
+                })
+            }
+            ClientLoader::Forge | ClientLoader::NeoForge => {
+                let (kind, cache) = match loader {
+                    ClientLoader::Forge => (crate::upstream_install::Kind::Forge, "forge-61.2.5"),
+                    _ => (crate::upstream_install::Kind::NeoForge, "neoforge-21.11.48"),
+                };
+                let f = crate::upstream_install::install(
+                    &root.join("upstream-installations").join(cache),
+                    &java,
+                    &root,
+                    kind,
+                )?;
+                library_directory = f.library_dir;
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: f.profile,
+                    libraries: f.libraries,
+                })
+            }
+        })
+        .transpose()?;
+    let mut classpath = fabric
+        .as_ref()
+        .map(|f| f.libraries.clone())
+        .unwrap_or_default();
     let mut native_jars = Vec::new();
     for lib in v["libraries"].as_array().ok_or("Missing libraries")? {
         if !allowed(lib) {
@@ -251,6 +363,10 @@ fn prepare_identity(
         )?,
     )?;
     let vars = HashMap::from([
+        (
+            "library_directory",
+            library_directory.to_string_lossy().into_owned(),
+        ),
         ("auth_player_name", name.to_owned()),
         ("auth_uuid", uuid),
         (
@@ -309,8 +425,24 @@ fn prepare_identity(
             &HashMap::from([("path", file.to_string_lossy().into_owned())]),
         )?);
     }
-    args.push(required(&v, "mainClass")?.to_owned());
+    if let Some(f) = &fabric {
+        if let Some(jvm) = f.profile["arguments"].get("jvm") {
+            args.extend(arguments(jvm, &vars)?);
+        }
+    }
+    args.push(
+        required(
+            fabric.as_ref().map(|f| &f.profile).unwrap_or(&v),
+            "mainClass",
+        )?
+        .to_owned(),
+    );
     args.extend(arguments(&v["arguments"]["game"], &vars)?);
+    if let Some(f) = &fabric {
+        if let Some(game) = f.profile["arguments"].get("game") {
+            args.extend(arguments(game, &vars)?);
+        }
+    }
     Ok(LaunchPlan {
         java,
         args,
@@ -366,7 +498,7 @@ mod tests {
     use std::io::Write;
     #[test]
     fn local_names_are_validated() {
-        for s in ["", "a b", "../x", "Player;calc", "á", "abcdefghijklmnopq"] {
+        for s in ["", "a b", "../x", "Player;calc", "Ã¡", "abcdefghijklmnopq"] {
             assert!(offline_uuid(s).is_err(), "{s}");
         }
         assert_eq!(
