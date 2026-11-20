@@ -645,6 +645,74 @@ mod tests {
     }
 
     #[test]
+    fn version_cmp_is_a_total_order() {
+        // Representative corpus: fabric/quilt builds with pre-releases,
+        // forge/neoforge dotted builds, and the combined 1.20.1 neoforge id.
+        const CORPUS: &[&str] = &[
+            "0.20.0-beta.1",
+            "0.20.0-beta.2",
+            "0.20.0-beta.9",
+            "0.20.0-beta.10",
+            "0.20.2-beta.1",
+            "0.24.0-beta.1",
+            "0.24.0",
+            "0.30.2",
+            "0.31.0-beta.6",
+            "14.23.5.2859",
+            "14.23.5.2864",
+            "47.1.106",
+            "47.4.29",
+            "20.2.88",
+            "21.11.0-beta",
+            "21.11.48",
+            "61.2.5",
+            "1.20.1-47.1.106",
+        ];
+        use std::cmp::Ordering::*;
+        // Antisymmetry: flipping the arguments flips the result.
+        for a in CORPUS {
+            for b in CORPUS {
+                assert_eq!(
+                    version_cmp(a, b),
+                    version_cmp(b, a).reverse(),
+                    "antisymmetry {a} vs {b}"
+                );
+                assert_eq!(version_cmp(a, a), Equal, "reflexivity {a}");
+            }
+        }
+        // Transitivity over every triple.
+        for a in CORPUS {
+            for b in CORPUS {
+                for c in CORPUS {
+                    if version_cmp(a, b) != Greater && version_cmp(b, c) != Greater {
+                        assert_ne!(version_cmp(a, c), Greater, "transitivity {a} <= {b} <= {c}");
+                    }
+                }
+            }
+        }
+        // Sorting any rotation yields the same fully ordered output.
+        let mut sorted: Vec<_> = CORPUS.to_vec();
+        sorted.sort_by(|a, b| version_cmp(b, a));
+        for w in sorted.windows(2) {
+            assert_ne!(version_cmp(w[0], w[1]), Less, "sorted order");
+        }
+        for rot in 0..CORPUS.len() {
+            let mut v: Vec<_> = CORPUS
+                .iter()
+                .cycle()
+                .skip(rot)
+                .take(CORPUS.len())
+                .copied()
+                .collect();
+            v.sort_by(|a, b| version_cmp(b, a));
+            assert_eq!(v, sorted, "rotation {rot}");
+        }
+        // A release and its equivalent padded form are indistinguishable
+        // (kept out of CORPUS so the sorted output is deterministic).
+        assert_eq!(version_cmp("0.24", "0.24.0"), Equal);
+    }
+
+    #[test]
     fn loader_versions_sort_newest_first() {
         use std::cmp::Ordering::*;
         assert_eq!(version_cmp("47.4.29", "47.4.5"), Greater);
