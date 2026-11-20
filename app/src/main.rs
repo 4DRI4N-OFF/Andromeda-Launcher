@@ -318,28 +318,22 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                         let loader = match kind {
                             None => None,
                             Some(k) => {
-                                // The user picks the build in the list; if the
-                                // list is stale or empty, fall back to the
-                                // newest published build (stable when flagged).
-                                // Either way verify_selection re-checks below.
-                                let chosen = loader_versions_shared
+                                // The user picks the build in the list. Never
+                                // substitute another build silently: a missing
+                                // pick blocks with an explanation, and a pick
+                                // that no longer matches the Minecraft version
+                                // is rejected by verify_selection below.
+                                let list = loader_versions_shared
                                     .lock()
-                                    .map_err(|_| "Loader build list lock unavailable")?
-                                    .get(pick_loader_version as usize)
-                                    .cloned();
-                                match chosen {
-                                    Some(v) => Some((k, v)),
-                                    None => {
-                                        let page = loader_versions(&dl, &cache, k, &mc)?;
-                                        let pick = page
-                                            .items
-                                            .iter()
-                                            .find(|v| v.stable == Some(true))
-                                            .or(page.items.first())
-                                            .ok_or("No loader builds are published for this Minecraft version")?;
-                                        Some((k, pick.version.clone()))
-                                    }
+                                    .map_err(|_| "Loader build list lock unavailable")?;
+                                if list.is_empty() {
+                                    return Err("Pick a loader build from the list; if it is empty, no builds are published for this Minecraft version".into());
                                 }
+                                let v = list
+                                    .get(pick_loader_version as usize)
+                                    .cloned()
+                                    .ok_or("The picked loader build is no longer listed; pick it again")?;
+                                Some((k, v))
                             }
                         };
                         let sel = verify_selection(&dl, &cache, &mc, loader.as_ref().map(|(k, v)| (*k, v.as_str())))?;
