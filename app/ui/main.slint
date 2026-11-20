@@ -730,7 +730,7 @@ export component MainWindow inherits Window {
                                     }
                                     Text { text: "LOADER (ONE PER PROFILE)"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
                                     HorizontalLayout { spacing: 6px;
-                                        for loader[i] in ["Vanilla", "Fabric", "Quilt", "Forge", "NeoForge", "LegacyFabric", "Babric"] : AppButton {
+                                        for loader[i] in ["Vanilla", "Fabric", "Quilt", "Forge", "NeoForge", "LegacyFabric", "Babric", "Ornithe"] : AppButton {
                                             horizontal-stretch: 1; label: loader; small: true; primary: root.loader-index == i; enabled: !root.busy && (i == 0 || root.loader-available[i]);
                                             clicked => { root.loader-index = i; root.loader-version-index = 0; root.loader-picked(i); }
                                         }

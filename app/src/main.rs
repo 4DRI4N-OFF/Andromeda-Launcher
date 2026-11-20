@@ -58,6 +58,7 @@ fn refresh_instances(
                 Some(andromeda_core::instances::Loader::NeoForge { .. }) => "NeoForge",
                 Some(andromeda_core::instances::Loader::LegacyFabric { .. }) => "LegacyFabric",
                 Some(andromeda_core::instances::Loader::Babric { .. }) => "Babric",
+                Some(andromeda_core::instances::Loader::Ornithe { .. }) => "Ornithe",
                 None => "Vanilla",
             }
         )
@@ -85,6 +86,9 @@ fn refresh_instances(
             }
             Some(andromeda_core::instances::Loader::Babric { version }) => {
                 format!("Babric {version}")
+            }
+            Some(andromeda_core::instances::Loader::Ornithe { version }) => {
+                format!("Ornithe {version}")
             }
             None => "Vanilla".into(),
         };
@@ -319,7 +323,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                             .get(pick_version as usize)
                             .cloned()
                             .ok_or("Pick a game version from the list")?;
-                        let kind = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric), Some(LoaderKind::Babric)]
+                        let kind = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric), Some(LoaderKind::Babric), Some(LoaderKind::Ornithe)]
                             .get(pick_loader as usize)
                             .copied()
                             .flatten();
@@ -466,7 +470,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                     .collect();
                 let mut ids = Vec::new();
                 let mut labels = Vec::new();
-                if let Some(k) = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric), Some(LoaderKind::Babric)]
+                if let Some(k) = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric), Some(LoaderKind::Babric), Some(LoaderKind::Ornithe)]
                     .get(kind_index as usize)
                     .copied()
                     .flatten()
@@ -521,7 +525,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         std::thread::spawn(move || {
             let result = (|| -> Result<(Vec<String>, Vec<slint::SharedString>), Box<dyn std::error::Error + Send + Sync>> {
                 use andromeda_core::catalog::{loader_versions, LoaderKind};
-                let kind = [LoaderKind::Fabric, LoaderKind::Quilt, LoaderKind::Forge, LoaderKind::NeoForge, LoaderKind::LegacyFabric, LoaderKind::Babric][index as usize - 1];
+                let kind = [LoaderKind::Fabric, LoaderKind::Quilt, LoaderKind::Forge, LoaderKind::NeoForge, LoaderKind::LegacyFabric, LoaderKind::Babric, LoaderKind::Ornithe][index as usize - 1];
                 let dl = andromeda_core::vanilla::Downloader::new()?;
                 let cache = root.join("catalog-cache");
                 let mut ids = Vec::new();
@@ -654,6 +658,18 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                     Some(andromeda_core::instances::Loader::Babric { version }) => {
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
                         andromeda_core::launch::prepare_babric(
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
+                        )?
+                    }
+                    Some(andromeda_core::instances::Loader::Ornithe { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_ornithe(
                             &root,
                             &mc,
                             &name,
