@@ -264,6 +264,38 @@ enum ClientLoader<'a> {
     NeoForge(&'a str),
     LegacyFabric(&'a str),
 }
+/// Pre-1.6 versions read resources from a real directory tree. Assemble it
+/// from the verified asset objects named by the pre-1.6 index (hard links,
+/// falling back to copies); every object was hash-verified at download time.
+fn assemble_virtual_assets(root: &Path, index_id: &str) -> Result<PathBuf> {
+    let index = path(&root.join("assets/indexes"), &format!("{index_id}.json"))?;
+    let index: Value = serde_json::from_slice(&fs::read(index)?)?;
+    let dest_root = root.join("assets").join("virtual").join(index_id);
+    let objects = index["objects"]
+        .as_object()
+        .ok_or("Missing asset objects")?;
+    if objects.is_empty() || objects.len() > 100_000 {
+        return Err("Invalid asset object count".into());
+    }
+    for (name, obj) in objects {
+        let h = required(obj, "hash")?;
+        if h.len() != 40 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("Invalid asset hash".into());
+        }
+        let src = path(&root.join("assets/objects"), &format!("{}/{}", &h[..2], h))?;
+        let dest = path(&dest_root, name)?;
+        if dest.is_file() {
+            continue;
+        }
+        let parent = dest.parent().ok_or("Missing asset parent")?;
+        fs::create_dir_all(parent)?;
+        if fs::hard_link(&src, &dest).is_err() {
+            fs::copy(&src, &dest)?;
+        }
+    }
+    Ok(dest_root)
+}
+
 fn prepare_identity(
     root: &Path,
     version: &str,
@@ -435,6 +467,13 @@ fn prepare_identity(
             &format!("{}.json", required(ai, "id")?),
         )?,
     )?;
+    // Pre-1.6 versions take a real resource directory assembled from the
+    // verified objects; newer ones only need the objects store.
+    let game_assets = if required(ai, "id")? == "pre-1.6" {
+        assemble_virtual_assets(&root, "pre-1.6")?
+    } else {
+        root.join("assets")
+    };
     let vars = HashMap::from([
         (
             "library_directory",
@@ -480,8 +519,16 @@ fn prepare_identity(
             "classpath_separator",
             if cfg!(windows) { ";" } else { ":" }.to_owned(),
         ),
-        // Legacy minecraftArguments (up to 1.12.2) reference this.
+        // Legacy minecraftArguments (up to 1.12.2) reference these.
         ("user_properties", "{}".to_owned()),
+        (
+            "auth_session",
+            session.map(|s| s.access_token()).unwrap_or("0").into(),
+        ),
+        (
+            "game_assets",
+            game_assets.to_string_lossy().into_owned(),
+        ),
         (
             "classpath",
             classpath

@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "forge" => ("1.21.11", "61.2.5"),
         "neoforge" => ("1.21.11", "21.11.48"),
         "legacyfabric" => ("1.8.9", "0.20.1"),
+        "vanilla-legacy" => ("1.5.2", ""),
         _ => return Err("Unsupported test loader".into()),
     };
     let (mc, loader_version, rest): (String, String, &[String]) = match a.get(4).map(String::as_str)
@@ -70,6 +71,9 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 &loader_version,
             )?,
         )?,
+        "vanilla-legacy" => {
+            andromeda_core::launch::prepare_in_game_dir(root, &mc, "LoaderTest", 2048, game)?
+        }
         "legacyfabric" => andromeda_core::launch::prepare_legacyfabric(
             root,
             &mc,
@@ -90,7 +94,31 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )?,
         _ => return Err("Unsupported test loader".into()),
     };
-    if !plan
+    if a[3].as_str() == "vanilla-legacy" {
+        // Pre-1.6 identity is positional: the two game arguments right
+        // after the main class are player name then session token.
+        let main = plan
+            .args
+            .iter()
+            .position(|x| x.starts_with("net.minecraft."))
+            .ok_or("Legacy main class missing from plan")?;
+        if plan.args.get(main + 1).map(String::as_str) != Some("LoaderTest")
+            || plan.args.get(main + 2).map(String::as_str) != Some("0")
+        {
+            return Err("Legacy positional identity not applied".into());
+        }
+        if plan.args.iter().any(|x| x.contains("${")) {
+            return Err("Unexpanded placeholder in legacy arguments".into());
+        }
+        let virtual_assets = root.join("assets").join("virtual").join("pre-1.6");
+        let count = std::fs::read_dir(&virtual_assets)
+            .map_err(|_| "Virtual legacy assets not assembled".to_owned())?
+            .count();
+        if count == 0 {
+            return Err("Virtual legacy assets are empty".into());
+        }
+        println!("Legacy vanilla plan verified: {count} top-level virtual asset entries");
+    } else if !plan
         .args
         .windows(2)
         .any(|v| v[0] == "--username" && v[1] == "LoaderTest")
