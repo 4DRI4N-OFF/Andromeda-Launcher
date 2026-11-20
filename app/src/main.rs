@@ -18,6 +18,7 @@ mod startup_sheen;
 mod motion_ui;
 mod native_login;
 mod theme_ui;
+mod mods_wire;
 use andromeda_core::settings::Settings;
 use slint::ComponentHandle;
 use std::{
@@ -276,6 +277,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
             {
                 ui.set_local_name(i.local_name.into());
             }
+            ui.invoke_mods_refresh();
         }
     });
     let manage_weak = ui.as_weak();
@@ -554,6 +556,10 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
             });
         });
     });
+mods_wire::wire_mods!(ui, instances, instance_root);
+
+ui.invoke_mods_refresh();
+
     ui.invoke_version_refresh(0);
     let launch_weak = ui.as_weak();
     let vanilla_dir = dir.join("vanilla");
@@ -744,3 +750,4 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
 
     Ok(PreparedMain {ui,_motion_timer,auth_cancel})
 }
+

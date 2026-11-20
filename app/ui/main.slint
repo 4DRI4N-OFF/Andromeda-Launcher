@@ -409,7 +409,23 @@ export component MainWindow inherits Window {
     callback version-refresh(int);
     callback version-picked(int);
     callback loader-picked(int);
-    in-out property <bool> trash-armed: false;
+    in property <[string]> mod-rows: [];
+    in property <[string]> mod-row-details: [];
+    in-out property <int> mod-index: 0;
+    in property <[string]> mod-results: [];
+    in property <[string]> mod-result-details: [];
+    in-out property <int> mod-result-index: 0;
+    in-out property <string> mod-query: "";
+    in-out property <string> mod-status: "";
+    in property <bool> mod-supported: false;
+    callback mods-refresh();
+    callback mod-toggle();
+    callback mod-remove();
+    callback mod-update();
+    callback mods-search();
+    callback mod-install();
+
+        in-out property <bool> trash-armed: false;
     in-out property <bool> can-restore: false;
     callback instance-selected(int);
     callback manage-instance(string, string);
@@ -671,7 +687,7 @@ export component MainWindow inherits Window {
                 GlassPanel { horizontal-stretch: 1;
                     VerticalLayout { padding: 40px; alignment: start; spacing: 20px;
                         Text { text: "Mods"; font-family: ThemePalette.display-font; font-size: 42px; color: ThemePalette.text-color; }
-                        Text { text: "Visual shell checkpoint. Mod browsing and editing are not implemented here. No mod inventory or activity is being claimed."; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 14px; color: ThemePalette.muted; }
+                        Text { text: "Mods are managed per profile. Select a profile with a mod loader in Play, then open Settings / Profiles to search, install, update or remove its mods."; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 14px; color: ThemePalette.muted; }
                     }
                 }
             }
@@ -702,7 +718,7 @@ export component MainWindow inherits Window {
                     GlassPanel {
                         horizontal-stretch: 1;
                         ScrollView { x: root.width < 1100px ? 22px : 44px; y: root.width < 1100px ? 22px : 40px; width: parent.width - (root.width < 1100px ? 44px : 88px); height: parent.height - (root.width < 1100px ? 44px : 80px);
-                            VerticalLayout { spacing: 24px; alignment: start;
+                            VerticalLayout { spacing: 24px; alignment: start; padding-right: 12px;
                                 Text { text: "SETTINGS / " + (root.settings-section == 0 ? "PROFILES" : root.settings-section == 1 ? "PLAYER" : "APPEARANCE"); font-family: ThemePalette.value-font; font-size: 11px; letter-spacing: 3px; color: ThemePalette.accent; }
                                 Text { text: root.settings-section == 0 ? "Profiles" : root.settings-section == 1 ? "Account & player" : "Appearance"; font-family: ThemePalette.display-font; opacity: ThemePalette.display-opacity; font-size: root.width < 1000px ? 28px : 48px; font-weight: 800; color: ThemePalette.text-color; }
                                 Text { text: root.settings-section == 0 ? "Create a profile or manage the one selected in Play. Each profile keeps its own game files." : root.settings-section == 1 ? "Choose your Play identity. Microsoft sign-in and the offline player name belong together here." : "Choose a theme and how much motion you want. The same layout and settings work across all themes."; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
@@ -759,6 +775,47 @@ export component MainWindow inherits Window {
                                         AppButton { horizontal-stretch: 1; label: root.trash-armed ? "Confirm trash" : "Move to trash"; small: true; danger: true; enabled: !root.busy && root.instance-index > 0; clicked => { root.manage-instance("trash", ""); } }
                                         AppButton { horizontal-stretch: 1; label: "Undo trash"; small: true; enabled: !root.busy && root.can-restore; clicked => { root.manage-instance("restore", ""); } }
                                     }
+// --- Anchor 2: UI block, insert after the Duplicate/Trash row ---
+    Rectangle { height: 1px; background: ThemePalette.border; }
+    Text { text: "MODS (SELECTED IN PLAY)"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
+    if !root.mod-supported : Text { text: "Mods need a profile with a mod loader."; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
+    if root.mod-supported : VerticalLayout {
+        vertical-stretch: 0; alignment: start; spacing: 8px;
+        Rectangle { height: 140px; border-radius: 8px; background: ThemePalette.field; border-width: 1px; border-color: ThemePalette.border; clip: true;
+            ScrollView { x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
+                VerticalLayout { spacing: 2px; alignment: start;
+                    for m[i] in root.mod-rows : SectionRow {
+                        label: m; value: root.mod-row-details[i]; selected: root.mod-index == i; entered: 1;
+                        clicked => { root.mod-index = i; }
+                    }
+                    if root.mod-rows.length == 0 : Text { text: root.busy ? "Loading..." : "No managed mods yet."; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
+                }
+            }
+        }
+        HorizontalLayout { spacing: 6px;
+            AppButton { horizontal-stretch: 1; label: "On/Off"; small: true; enabled: !root.busy && root.mod-rows.length > 0; clicked => { root.mod-toggle(); } }
+            AppButton { horizontal-stretch: 1; label: "Update"; small: true; enabled: !root.busy && root.mod-rows.length > 0; clicked => { root.mod-update(); } }
+            AppButton { horizontal-stretch: 1; label: "Remove"; small: true; danger: true; enabled: !root.busy && root.mod-rows.length > 0; clicked => { root.mod-remove(); } }
+        }
+        HorizontalLayout { spacing: 6px;
+            AppField { horizontal-stretch: 1; text <=> root.mod-query; placeholder: "Search Modrinth"; enabled: !root.busy; }
+            AppButton { label: "Search"; small: true; enabled: !root.busy && root.mod-query != ""; clicked => { root.mods-search(); } }
+        }
+        Rectangle { height: 120px; border-radius: 8px; background: ThemePalette.field; border-width: 1px; border-color: ThemePalette.border; clip: true;
+            ScrollView { x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
+                VerticalLayout { spacing: 2px; alignment: start;
+                    for r[i] in root.mod-results : SectionRow {
+                        label: r; value: root.mod-result-details[i]; selected: root.mod-result-index == i; entered: 1;
+                        clicked => { root.mod-result-index = i; }
+                    }
+                    if root.mod-results.length == 0 : Text { text: "Search to see compatible mods."; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
+                }
+            }
+        }
+        AppButton { label: "Install selected"; primary: true; enabled: !root.busy && root.mod-results.length > 0; clicked => { root.mod-install(); } }
+        Text { text: root.mod-status; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 11px; color: ThemePalette.muted; }
+    }
+
                                 }
                                 if root.settings-section == 1 : VerticalLayout {
                                     vertical-stretch: 0; alignment: start; spacing: 12px;
@@ -808,3 +865,4 @@ export component MainWindow inherits Window {
         occlude:false;ink:root.startup-overlay ? root.startup-ink : ThemePalette.text-color;
     }
 }
+
