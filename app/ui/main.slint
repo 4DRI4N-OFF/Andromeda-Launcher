@@ -399,6 +399,11 @@ export component MainWindow inherits Window {
     in property <[string]> instance-names: ["Default profile (phase 2)"];
     in-out property <int> instance-index: 0;
     in-out property <string> instance-name: "New instance";
+    in property <[string]> version-choices: [];
+    in-out property <int> version-filter: 0;
+    in-out property <int> version-index: 0;
+    in-out property <int> loader-index: 0;
+    callback version-refresh(int);
     in-out property <bool> trash-armed: false;
     in-out property <bool> can-restore: false;
     callback instance-selected(int);
@@ -700,12 +705,32 @@ export component MainWindow inherits Window {
                                     vertical-stretch: 0; alignment: start; spacing: 12px;
                                     Text { text: "NEW PROFILE / COPY NAME"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
                                     AppField { text <=> root.instance-name; placeholder: "Profile name"; enabled: !root.busy; }
+                                    Text { text: "GAME VERSION"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
                                     HorizontalLayout { spacing: 6px;
-                                        for loader[i] in ["Vanilla", "Fabric", "Quilt", "Forge", "NeoForge"] : AppButton {
-                                            horizontal-stretch: 1; label: loader; small: true; enabled: !root.busy;
-                                            clicked => { root.manage-instance(i == 0 ? "create" : i == 1 ? "createfabric" : i == 2 ? "createquilt" : i == 3 ? "createforge" : "createneoforge", root.instance-name); }
+                                        for f[i] in ["Stable", "Snapshots", "Old", "All"] : AppButton {
+                                            horizontal-stretch: 1; label: f; small: true; primary: root.version-filter == i; enabled: !root.busy;
+                                            clicked => { root.version-filter = i; root.version-index = 0; root.version-refresh(i); }
                                         }
                                     }
+                                    Rectangle { height: 168px; border-radius: 8px; background: ThemePalette.field; border-width: 1px; border-color: ThemePalette.border; clip: true;
+                                        ScrollView { x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
+                                            VerticalLayout { spacing: 2px; alignment: start;
+                                                for v[i] in root.version-choices : SectionRow {
+                                                    label: v; value: ""; selected: root.version-index == i; entered: 1;
+                                                    clicked => { root.version-index = i; }
+                                                }
+                                                if root.version-choices.length == 0 : Text { text: "Loading versions..."; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
+                                            }
+                                        }
+                                    }
+                                    Text { text: "LOADER (ONE PER PROFILE)"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
+                                    HorizontalLayout { spacing: 6px;
+                                        for loader[i] in ["Vanilla", "Fabric", "Quilt", "Forge", "NeoForge"] : AppButton {
+                                            horizontal-stretch: 1; label: loader; small: true; primary: root.loader-index == i; enabled: !root.busy;
+                                            clicked => { root.loader-index = i; }
+                                        }
+                                    }
+                                    AppButton { label: "Create profile"; primary: true; enabled: !root.busy && root.version-choices.length > 0; clicked => { root.manage-instance("createsel", root.instance-name); } }
                                     Rectangle { height: 1px; background: ThemePalette.border; }
                                     Text { text: "SELECTED IN PLAY"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
                                     Text { text: root.current-profile; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 14px; font-weight: 600; color: ThemePalette.text-color; }

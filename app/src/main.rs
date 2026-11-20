@@ -266,6 +266,8 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
     let manage_instances = instances.clone();
     let manage_root = instance_root.clone();
     let manage_trash = last_trash.clone();
+    let version_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let manage_versions = version_ids.clone();
     ui.on_manage_instance(move |action, name| {
         let Some(ui) = manage_weak.upgrade() else { return; };
         if ui.get_launch_busy() || ui.get_auth_busy() { return; }
@@ -283,10 +285,48 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         let shared = manage_instances.clone();
         let trash = manage_trash.clone();
         let local_name = ui.get_local_name().to_string();
+        let pick_version = ui.get_version_index();
+        let pick_loader = ui.get_loader_index();
+        let versions = manage_versions.clone();
         let name = name.to_string(); let action = action.to_string();
         std::thread::spawn(move || {
             let result = (|| -> Result<Vec<andromeda_core::instances::Instance>, Box<dyn std::error::Error + Send + Sync>> {
                 match action.as_str() {
+                    "createsel" => {
+                        // Version picker flow: the Minecraft version comes from
+                        // the filtered catalog list, the loader is at most one,
+                        // and the loader build is the newest published for that
+                        // Minecraft version (stable when flagged). Everything is
+                        // re-verified against the catalogs before writing.
+                        use andromeda_core::catalog::{loader_versions, verify_selection, LoaderKind};
+                        let dl = andromeda_core::vanilla::Downloader::new()?;
+                        let cache = root.join("catalog-cache");
+                        let mc = versions
+                            .lock()
+                            .map_err(|_| "Version list lock unavailable")?
+                            .get(pick_version as usize)
+                            .cloned()
+                            .ok_or("Pick a game version from the list")?;
+                        let kind = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge)]
+                            .get(pick_loader as usize)
+                            .copied()
+                            .flatten();
+                        let loader = match kind {
+                            None => None,
+                            Some(k) => {
+                                let page = loader_versions(&dl, &cache, k, &mc)?;
+                                let pick = page
+                                    .items
+                                    .iter()
+                                    .find(|v| v.stable == Some(true))
+                                    .or(page.items.first())
+                                    .ok_or("No loader builds are published for this Minecraft version")?;
+                                Some((k, pick.version.clone()))
+                            }
+                        };
+                        let sel = verify_selection(&dl, &cache, &mc, loader.as_ref().map(|(k, v)| (*k, v.as_str())))?;
+                        andromeda_core::instances::create_selected(&root, &name, &local_name, 2048, &sel)?;
+                    }
                     "create" | "createfabric" | "createquilt" | "createforge" | "createneoforge" => {
                         // Every creation is verified against the live loader
                         // catalogs before an instance is written: the version
@@ -322,6 +362,60 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
             });
         });
     });
+    let vr_weak = ui.as_weak();
+    let vr_root = instance_root.clone();
+    let vr_versions = version_ids.clone();
+    ui.on_version_refresh(move |filter| {
+        let Some(ui) = vr_weak.upgrade() else { return; };
+        if ui.get_launch_busy() { return; }
+        ui.set_launch_busy(true);
+        ui.set_launch_status("Loading the version catalog...".into());
+        let weak = vr_weak.clone();
+        let root = vr_root.clone();
+        let versions = vr_versions.clone();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<Vec<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+                use andromeda_core::catalog::{mc_versions, McFilter, McKind};
+                let dl = andromeda_core::vanilla::Downloader::new()?;
+                let cache = root.join("catalog-cache");
+                let f = match filter {
+                    0 => McFilter { release: true, snapshot: false, old_beta: false, old_alpha: false },
+                    1 => McFilter { release: false, snapshot: true, old_beta: false, old_alpha: false },
+                    2 => McFilter { release: false, snapshot: false, old_beta: true, old_alpha: true },
+                    _ => McFilter::all(),
+                };
+                let page = mc_versions(&dl, &cache, f)?;
+                Ok(page
+                    .items
+                    .iter()
+                    .map(|v| {
+                        let kind = match v.kind {
+                            McKind::Release => "release",
+                            McKind::Snapshot => "snapshot",
+                            McKind::OldBeta => "old beta",
+                            McKind::OldAlpha => "old alpha",
+                        };
+                        (v.id.clone(), format!("{} · {}", v.id, kind))
+                    })
+                    .collect())
+            })();
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                match result {
+                    Ok(list) => {
+                        let (ids, labels): (Vec<String>, Vec<slint::SharedString>) =
+                            list.into_iter().map(|(i, l)| (i, l.into())).unzip();
+                        let n = labels.len();
+                        if let Ok(mut v) = versions.lock() { *v = ids; }
+                        ui.set_version_choices(slint::ModelRc::new(slint::VecModel::from(labels)));
+                        ui.set_launch_status(format!("{n} versions listed. Pick one version and at most one loader.").into());
+                    }
+                    Err(e) => ui.set_launch_status(format!("Could not load versions: {e}").into()),
+                }
+                ui.set_launch_busy(false);
+            });
+        });
+    });
+    ui.invoke_version_refresh(0);
     let launch_weak = ui.as_weak();
     let vanilla_dir = dir.join("vanilla");
     ui.on_launch_offline(move |name| {
