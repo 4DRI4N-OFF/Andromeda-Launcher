@@ -30,7 +30,7 @@ const NEOFORGE_MAVEN_META: &str =
 /// its .sha256 sidecar and a bootstraplauncher profile are all published.
 const NEOFORGE_1_20_1_META: &str =
     "https://maven.neoforged.net/releases/net/neoforged/forge/maven-metadata.xml";
-const CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);
+pub(crate) const CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum McKind {
@@ -135,7 +135,7 @@ pub struct CatalogPage<T> {
     pub stale: bool,
 }
 
-fn cache_path(dir: &Path, name: &str) -> Result<PathBuf> {
+pub(crate) fn cache_path(dir: &Path, name: &str) -> Result<PathBuf> {
     if name.is_empty()
         || !name
             .bytes()
@@ -151,7 +151,7 @@ fn cache_path(dir: &Path, name: &str) -> Result<PathBuf> {
 ///
 /// Cache validity uses the file modification time; entries over 64 MiB are
 /// rejected and writes go through a rename so readers never see a torn file.
-fn cached_get(
+pub(crate) fn cached_get(
     dl: &crate::vanilla::Downloader,
     dir: &Path,
     name: &str,
