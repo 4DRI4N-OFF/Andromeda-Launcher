@@ -4,7 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let a: Vec<_> = std::env::args().collect();
     if a.len() < 4 || a.len() > 7 {
         return Err(
-            "Usage: loader_offline_probe VANILLA_ROOT GAME_DIR fabric|quilt|forge|neoforge [MC LOADER_VERSION] [launch]"
+            "Usage: loader_offline_probe VANILLA_ROOT GAME_DIR fabric|quilt|forge|neoforge|legacyfabric|babric|vanilla-legacy [MC LOADER_VERSION] [launch]"
                 .into(),
         );
     }
@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "forge" => ("1.21.11", "61.2.5"),
         "neoforge" => ("1.21.11", "21.11.48"),
         "legacyfabric" => ("1.8.9", "0.20.1"),
+        "babric" => ("b1.7.3", "0.20.1"),
         "vanilla-legacy" => ("1.5.2", ""),
         _ => return Err("Unsupported test loader".into()),
     };
@@ -74,6 +75,15 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "vanilla-legacy" => {
             andromeda_core::launch::prepare_in_game_dir(root, &mc, "LoaderTest", 2048, game)?
         }
+        "babric" => andromeda_core::launch::prepare_babric(
+            root,
+            &mc,
+            "LoaderTest",
+            2048,
+            game,
+            None,
+            &loader_version,
+        )?,
         "legacyfabric" => andromeda_core::launch::prepare_legacyfabric(
             root,
             &mc,
@@ -94,13 +104,14 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )?,
         _ => return Err("Unsupported test loader".into()),
     };
-    if a[3].as_str() == "vanilla-legacy" {
+    if matches!(a[3].as_str(), "vanilla-legacy" | "babric") {
         // Pre-1.6 identity is positional: the two game arguments right
-        // after the main class are player name then session token.
+        // after the main class are player name then session token. A loader
+        // profile swaps the main class for its own entrypoint (KnotClient).
         let main = plan
             .args
             .iter()
-            .position(|x| x.starts_with("net.minecraft."))
+            .position(|x| x.starts_with("net.minecraft.") || x.ends_with("KnotClient"))
             .ok_or("Legacy main class missing from plan")?;
         if plan.args.get(main + 1).map(String::as_str) != Some("LoaderTest")
             || plan.args.get(main + 2).map(String::as_str) != Some("0")
@@ -117,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if count == 0 {
             return Err("Virtual legacy assets are empty".into());
         }
-        println!("Legacy vanilla plan verified: {count} top-level virtual asset entries");
+        println!("Legacy positional plan verified: {count} top-level virtual asset entries");
     } else if !plan
         .args
         .windows(2)
@@ -147,10 +158,43 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if plan.args.iter().any(|x| x.contains("${")) {
             return Err("Unexpanded placeholder in legacy arguments".into());
         }
-        if !root.join("natives").join(&mc).join("lwjgl64.dll").is_file() {
+        let ndir = root
+            .join("natives")
+            .join(format!("{mc}-legacyfabric-{loader_version}"));
+        if !ndir.join("lwjgl64.dll").is_file() {
             return Err("Legacy natives not extracted".into());
         }
         println!("Legacy plan verified: jre-legacy runtime, classpath, arguments, natives");
+    }
+    if a[3].as_str() == "babric" {
+        if !plan.java.to_string_lossy().contains("jre-legacy") {
+            return Err("Babric launch must use the Mojang legacy Java runtime".into());
+        }
+        let cp = plan
+            .args
+            .windows(2)
+            .find(|v| v[0] == "-cp")
+            .map(|v| v[1].clone())
+            .unwrap_or_default();
+        for needle in [
+            "fabric-loader-0.20.1",
+            "intermediary-upstream-b1.7.3",
+            "b1.7.3.jar",
+        ] {
+            if !cp.contains(needle) {
+                return Err(format!("Babric classpath missing {needle}").into());
+            }
+        }
+        if plan.args.iter().any(|x| x.contains("${")) {
+            return Err("Unexpanded placeholder in Babric arguments".into());
+        }
+        let ndir = root
+            .join("natives")
+            .join(format!("{mc}-babric-{loader_version}"));
+        if !ndir.join("lwjgl64.dll").is_file() {
+            return Err("Babric natives not extracted".into());
+        }
+        println!("Babric plan verified: jre-legacy runtime, classpath, arguments, natives");
     }
     println!("Offline plan ready: {}", a[3]);
     if launch {

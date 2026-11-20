@@ -10,6 +10,8 @@ pub mod vanilla;
 pub mod fabric;
 pub mod fabric_install;
 pub mod pkce;
+pub mod babric;
+pub mod babric_install;
 pub mod legacyfabric;
 pub mod legacyfabric_install;
 pub mod quilt;

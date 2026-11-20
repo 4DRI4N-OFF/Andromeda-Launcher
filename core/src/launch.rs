@@ -83,7 +83,10 @@ fn arguments(list: &Value, vars: &HashMap<&str, String>) -> Result<Vec<String>> 
 }
 
 // Only x64 Windows DLL entries are published. Never join an archive path onto disk.
-fn extract_native(jar: &Path, dest: &Path) -> Result<()> {
+/// When `overwrite` is set, entries may replace natives extracted earlier
+/// from the vanilla set: a loader's hash-verified natives (e.g. a patched
+/// LWJGL build) intentionally override the Mojang-published ones.
+fn extract_native(jar: &Path, dest: &Path, overwrite: bool) -> Result<()> {
     let mut zip = zip::ZipArchive::new(fs::File::open(jar)?)?;
     let mut total = 0u64;
     for i in 0..zip.len() {
@@ -120,10 +123,10 @@ fn extract_native(jar: &Path, dest: &Path) -> Result<()> {
             return Err("Expanded native entry exceeds size limit".into());
         }
         let target = path(dest, file)?;
-        if target.exists() && fs::read(&target)? != bytes {
+        if target.exists() && !overwrite && fs::read(&target)? != bytes {
             return Err(format!("Conflicting native DLL: {file}").into());
         }
-        if !target.exists() {
+        if overwrite || !target.exists() {
             fs::write(target, bytes)?;
         }
     }
@@ -237,6 +240,30 @@ pub fn prepare_legacyfabric(
         Some(ClientLoader::LegacyFabric(loader)),
     )
 }
+/// Babric launch: fabric-loader builds for b1.7.3 with Babric intermediary.
+pub fn prepare_babric(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    loader: &str,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some(ClientLoader::Babric(loader)),
+    )
+}
 /// Pinned Forge-family launch, using only a dedicated installer cache.
 pub fn prepare_upstream(
     root: &Path,
@@ -263,6 +290,7 @@ enum ClientLoader<'a> {
     Forge(&'a str),
     NeoForge(&'a str),
     LegacyFabric(&'a str),
+    Babric(&'a str),
 }
 /// Pre-1.6 versions read resources from a real directory tree. Assemble it
 /// from the verified asset objects named by the pre-1.6 index (hard links,
@@ -359,7 +387,14 @@ fn prepare_identity(
     )?;
     let game_dir = std::path::absolute(game)?;
     fs::create_dir_all(&game_dir)?;
-    let natives = root.join("natives").join(version);
+    // Loaders that ship patched natives (their own LWJGL build) get a
+    // per-loader natives directory: extracting the vanilla set next to an
+    // overridden loader set would read as a conflict on the next launch.
+    let natives = root.join("natives").join(match &fabric_loader {
+        Some(ClientLoader::LegacyFabric(l)) => format!("{version}-legacyfabric-{l}"),
+        Some(ClientLoader::Babric(l)) => format!("{version}-babric-{l}"),
+        _ => version.to_owned(),
+    });
     fs::create_dir_all(&natives)?;
     let mut library_directory = root.join("libraries");
     let mut loader_natives: Vec<std::path::PathBuf> = Vec::new();
@@ -386,6 +421,15 @@ fn prepare_identity(
                 Ok(crate::fabric_install::InstalledFabric {
                     profile: l.profile,
                     libraries: l.libraries,
+                })
+            }
+            ClientLoader::Babric(loader) => {
+                let b =
+                    crate::babric_install::install(&root.join("babric-libraries"), version, loader)?;
+                loader_natives = b.natives.clone();
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: b.profile,
+                    libraries: b.libraries,
                 })
             }
             ClientLoader::Forge(loader_version) | ClientLoader::NeoForge(loader_version) => {
@@ -451,12 +495,16 @@ fn prepare_identity(
             )?);
         }
     }
+    // In a per-loader natives directory the vanilla set tolerates replaced
+    // files: the loader's hash-verified natives legitimately override them
+    // (patched LWJGL), and a later plan run must not read its own previous
+    // override as a conflict. Plain vanilla directories stay strict.
     for jar in native_jars {
-        extract_native(&jar, &natives)?;
+        extract_native(&jar, &natives, !loader_natives.is_empty())?;
     }
     // Loader-published natives (e.g. patched LWJGL) override the vanilla set.
     for jar in loader_natives {
-        extract_native(&jar, &natives)?;
+        extract_native(&jar, &natives, true)?;
     }
     classpath.push(client);
     let ai = &v["assetIndex"];
@@ -681,7 +729,7 @@ mod tests {
                 .unwrap();
             z.write_all(b"x").unwrap();
             z.finish().unwrap();
-            assert!(extract_native(&jar, &temp).is_err());
+            assert!(extract_native(&jar, &temp, false).is_err());
         }
         let mut z = zip::ZipWriter::new(fs::File::create(&jar).unwrap());
         z.add_symlink(
@@ -691,7 +739,7 @@ mod tests {
         )
         .unwrap();
         z.finish().unwrap();
-        assert!(extract_native(&jar, &temp).is_err());
+        assert!(extract_native(&jar, &temp, false).is_err());
         fs::remove_dir_all(temp).unwrap();
     }
     #[test]
@@ -710,12 +758,15 @@ mod tests {
             z.write_all(bytes).unwrap();
         }
         z.finish().unwrap();
-        extract_native(&jar, &temp).unwrap();
+        extract_native(&jar, &temp, false).unwrap();
         assert_eq!(fs::read(temp.join("example.dll")).unwrap(), b"x");
         assert!(!temp.join("other.dll").exists());
         assert!(!temp.join("MANIFEST.MF").exists());
         fs::write(temp.join("example.dll"), b"changed").unwrap();
-        assert!(extract_native(&jar, &temp).is_err());
+        assert!(extract_native(&jar, &temp, false).is_err());
+        // Overwrite mode replaces the vanilla copy, as loader natives do.
+        extract_native(&jar, &temp, true).unwrap();
+        assert_eq!(fs::read(temp.join("example.dll")).unwrap(), b"x");
         fs::remove_dir_all(temp).unwrap();
     }
     #[test]

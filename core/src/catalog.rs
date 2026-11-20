@@ -16,6 +16,7 @@ const MOJANG_MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_ma
 const FABRIC_META: &str = "https://meta.fabricmc.net/v2/versions/loader";
 const QUILT_META: &str = "https://meta.quiltmc.org/v3/versions/loader";
 const LEGACYFABRIC_META: &str = "https://meta.legacyfabric.net/v2/versions/loader";
+const BABRIC_META: &str = "https://meta.babric.glass-launcher.net/v2/versions/loader";
 const FORGE_PROMOTIONS: &str =
     "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 const FORGE_MAVEN_META: &str =
@@ -92,15 +93,19 @@ pub enum LoaderKind {
     /// Standard fabric-loader builds for Minecraft 1.3-1.13.2 with
     /// LegacyFabric intermediary (meta.legacyfabric.net).
     LegacyFabric,
+    /// Standard fabric-loader builds for Minecraft b1.7.3 with Babric
+    /// intermediary-upstream (meta.babric.glass-launcher.net).
+    Babric,
 }
 impl LoaderKind {
-    pub fn all() -> [Self; 5] {
+    pub fn all() -> [Self; 6] {
         [
             Self::Fabric,
             Self::Quilt,
             Self::Forge,
             Self::NeoForge,
             Self::LegacyFabric,
+            Self::Babric,
         ]
     }
 }
@@ -222,6 +227,7 @@ fn json_loader_list(
         LoaderKind::Fabric => (FABRIC_META, format!("fabric-{mc}")),
         LoaderKind::Quilt => (QUILT_META, format!("quilt-{mc}")),
         LoaderKind::LegacyFabric => (LEGACYFABRIC_META, format!("legacyfabric-{mc}")),
+        LoaderKind::Babric => (BABRIC_META, format!("babric-{mc}")),
         _ => unreachable!(),
     };
     let url = format!("{base}/{mc}");
@@ -454,7 +460,7 @@ pub fn loader_versions(
         return Err("Invalid Minecraft version".into());
     }
     match kind {
-        LoaderKind::Fabric | LoaderKind::Quilt | LoaderKind::LegacyFabric => {
+        LoaderKind::Fabric | LoaderKind::Quilt | LoaderKind::LegacyFabric | LoaderKind::Babric => {
             json_loader_list(dl, cache, kind, mc)
         }
         LoaderKind::Forge => {
@@ -795,6 +801,25 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn babric_versions_parse_from_v2_list() {
+        let dir = std::env::temp_dir().join(format!(
+            "andromeda-catalog-test-babric-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("babric-b1.7.3.json"),
+            r#"[{"loader":{"separator":".","build":1,"maven":"net.fabricmc:fabric-loader:0.20.1","version":"0.20.1","stable":true},"intermediary":{"maven":"babric:intermediary-upstream:b1.7.3","version":"b1.7.3","stable":true},"launcherMeta":{"version":2,"min_java_version":8,"libraries":{"client":[],"common":[],"server":[]}}},{"loader":{"separator":".","build":2,"maven":"net.fabricmc:fabric-loader:0.20.0","version":"0.20.0","stable":true},"intermediary":{"maven":"babric:intermediary-upstream:b1.7.3","version":"b1.7.3","stable":true},"launcherMeta":{"version":2,"min_java_version":8,"libraries":{"client":[],"common":[],"server":[]}}}]"#,
+        )
+        .unwrap();
+        let dl = crate::vanilla::Downloader::new().unwrap();
+        let page = loader_versions(&dl, &dir, LoaderKind::Babric, "b1.7.3").unwrap();
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(page.items[0].version, "0.20.1");
+        assert!(page.items.iter().all(|v| v.kind == LoaderKind::Babric));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
     #[test]
     fn legacyfabric_versions_parse_from_v2_list() {
         let dir = fixture_dir("lf189");
