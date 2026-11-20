@@ -332,6 +332,10 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         let game_dir = selected_game.and_then(Result::ok);
         let memory = selected.as_ref().map(|i| i.memory_mb).unwrap_or(2048);
         let loader = selected.as_ref().and_then(|i| i.loader.clone());
+        let mc = selected
+            .as_ref()
+            .map(|i| i.version.clone())
+            .unwrap_or_else(|| "1.21.11".to_string());
         ui.set_launch_busy(true);
         ui.set_launch_status("Preparing installed vanilla 1.21.11...".into());
         let weak = launch_weak.clone();
@@ -355,7 +359,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
                         andromeda_core::launch::prepare_fabric(
                             &root,
-                            "1.21.11",
+                            &mc,
                             &name,
                             memory,
                             &game,
@@ -367,7 +371,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
                         andromeda_core::launch::prepare_quilt(
                             &root,
-                            "1.21.11",
+                            &mc,
                             &name,
                             memory,
                             &game,
@@ -375,43 +379,41 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                             &version,
                         )?
                     }
-                    Some(andromeda_core::instances::Loader::Forge { .. }) => {
+                    Some(andromeda_core::instances::Loader::Forge { version }) => {
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
-                        andromeda_core::launch::prepare_upstream(
-                            &root,
-                            "1.21.11",
-                            &name,
-                            memory,
-                            &game,
-                            session.as_ref(),
+                        let spec = andromeda_core::upstream_install::Spec::new(
                             andromeda_core::upstream_install::Kind::Forge,
+                            &mc,
+                            &version,
+                        )?;
+                        andromeda_core::launch::prepare_upstream(
+                            &root, &mc, &name, memory, &game, session.as_ref(), &spec,
                         )?
                     }
-                    Some(andromeda_core::instances::Loader::NeoForge { .. }) => {
+                    Some(andromeda_core::instances::Loader::NeoForge { version }) => {
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
-                        andromeda_core::launch::prepare_upstream(
-                            &root,
-                            "1.21.11",
-                            &name,
-                            memory,
-                            &game,
-                            session.as_ref(),
+                        let spec = andromeda_core::upstream_install::Spec::new(
                             andromeda_core::upstream_install::Kind::NeoForge,
+                            &mc,
+                            &version,
+                        )?;
+                        andromeda_core::launch::prepare_upstream(
+                            &root, &mc, &name, memory, &game, session.as_ref(), &spec,
                         )?
                     }
                     None => match session {
                         Some(session) => {
                             let game = game_dir.unwrap_or_else(|| root.join("game"));
                             andromeda_core::launch::prepare_authenticated(
-                                &root, "1.21.11", memory, &game, &session,
+                                &root, &mc, memory, &game, &session,
                             )?
                         }
                         None => match game_dir {
                             Some(game) => andromeda_core::launch::prepare_in_game_dir(
-                                &root, "1.21.11", &name, memory, &game,
+                                &root, &mc, &name, memory, &game,
                             )?,
                             None => {
-                                andromeda_core::launch::prepare(&root, "1.21.11", &name, memory)?
+                                andromeda_core::launch::prepare(&root, &mc, &name, memory)?
                             }
                         },
                     },

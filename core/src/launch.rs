@@ -10,7 +10,6 @@ use std::{
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-const VERSION: &str = "1.21.11";
 
 pub struct LaunchPlan {
     pub java: PathBuf,
@@ -223,23 +222,23 @@ pub fn prepare_upstream(
     memory_mb: u32,
     game: &Path,
     session: Option<&crate::auth::Session>,
-    kind: crate::upstream_install::Kind,
+    spec: &crate::upstream_install::Spec,
 ) -> Result<LaunchPlan> {
     if session.is_some_and(|s| s.is_expired()) {
         return Err("Microsoft session expired. Sign in again.".into());
     }
     let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
-    let overlay = match kind {
-        crate::upstream_install::Kind::Forge => ClientLoader::Forge,
-        crate::upstream_install::Kind::NeoForge => ClientLoader::NeoForge,
+    let overlay = match spec.kind() {
+        crate::upstream_install::Kind::Forge => ClientLoader::Forge(spec.version()),
+        crate::upstream_install::Kind::NeoForge => ClientLoader::NeoForge(spec.version()),
     };
     prepare_identity(root, version, name, memory_mb, game, session, Some(overlay))
 }
 enum ClientLoader<'a> {
     Fabric(&'a str),
     Quilt(&'a str),
-    Forge,
-    NeoForge,
+    Forge(&'a str),
+    NeoForge(&'a str),
 }
 fn prepare_identity(
     root: &Path,
@@ -250,9 +249,7 @@ fn prepare_identity(
     session: Option<&crate::auth::Session>,
     fabric_loader: Option<ClientLoader<'_>>,
 ) -> Result<LaunchPlan> {
-    if version != VERSION {
-        return Err("Phase 2 currently supports installed vanilla 1.21.11 only".into());
-    }
+    crate::instances::validate_mc_id(version)?;
     if !(512..=8192).contains(&memory_mb) {
         return Err("Memory must be between 512 and 8192 MB".into());
     }
@@ -268,8 +265,22 @@ fn prepare_identity(
     }
     let meta = path(&root, &format!("versions/{version}/{version}.json"))?;
     let v: Value = serde_json::from_slice(&fs::read(meta)?)?;
-    if v["id"] != version || v["javaVersion"]["majorVersion"] != 21 {
+    if v["id"] != version {
         return Err("Unexpected installed version metadata".into());
+    }
+    // Modern launch requires the arguments object and a Mojang Java runtime.
+    // Versions older than that (minecraftArguments string, no javaVersion)
+    // are a separate legacy phase and fail here with a clear error.
+    if v["arguments"].is_null() {
+        return Err(
+            "This version predates the modern launch format; legacy versions are not supported yet"
+                .into(),
+        );
+    }
+    if v["javaVersion"]["majorVersion"].as_u64().is_none() {
+        return Err(
+            "This version declares no Java runtime; legacy versions are not supported yet".into(),
+        );
     }
     let java_root = path(
         &root.join("runtime"),
@@ -302,16 +313,31 @@ fn prepare_identity(
                     libraries: q.libraries,
                 })
             }
-            ClientLoader::Forge | ClientLoader::NeoForge => {
-                let (kind, cache) = match loader {
-                    ClientLoader::Forge => (crate::upstream_install::Kind::Forge, "forge-61.2.5"),
-                    _ => (crate::upstream_install::Kind::NeoForge, "neoforge-21.11.48"),
+            ClientLoader::Forge(loader_version) | ClientLoader::NeoForge(loader_version) => {
+                let kind = match loader {
+                    ClientLoader::Forge(_) => crate::upstream_install::Kind::Forge,
+                    _ => crate::upstream_install::Kind::NeoForge,
                 };
-                let f = crate::upstream_install::install(
+                let spec = crate::upstream_install::Spec::new(kind, version, loader_version)?;
+                // Keep the original cache folder names for the builds this
+                // launcher pinned, so existing verified installs stay valid.
+                let cache = if spec == crate::upstream_install::Spec::pinned(kind) {
+                    match kind {
+                        crate::upstream_install::Kind::Forge => "forge-61.2.5".to_owned(),
+                        crate::upstream_install::Kind::NeoForge => "neoforge-21.11.48".to_owned(),
+                    }
+                } else {
+                    let stem = match kind {
+                        crate::upstream_install::Kind::Forge => "forge",
+                        crate::upstream_install::Kind::NeoForge => "neoforge",
+                    };
+                    format!("{stem}-{version}-{loader_version}")
+                };
+                let f = crate::upstream_install::install_spec(
                     &root.join("upstream-installations").join(cache),
                     &java,
                     &root,
-                    kind,
+                    &spec,
                 )?;
                 library_directory = f.library_dir;
                 Ok(crate::fabric_install::InstalledFabric {
