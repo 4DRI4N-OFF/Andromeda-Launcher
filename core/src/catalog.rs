@@ -225,8 +225,8 @@ fn json_loader_list(
     };
     let v: Value = serde_json::from_str(&body)?;
     let arr = v.as_array().ok_or("Invalid loader list")?;
-    // Upstream returns newest first, but sort defensively: the Forge maven
-    // metadata proved that published ordering cannot be trusted.
+    // Upstream order cannot be trusted: the Forge maven metadata arrived
+    // jumbled, and the Quilt list interleaves pre-releases with releases.
     let mut items = Vec::with_capacity(arr.len());
     for it in arr {
         let loader = &it["loader"];
@@ -247,6 +247,7 @@ fn json_loader_list(
             stable: loader["stable"].as_bool(),
         });
     }
+    items.sort_by(|a, b| version_cmp(&b.version, &a.version));
     Ok(CatalogPage { items, stale })
 }
 
@@ -328,27 +329,71 @@ pub fn forge_mc(combined: &str) -> Option<&str> {
 }
 
 /// Newest-first ordering for dotted loader versions ("14.23.5.2864",
-/// "21.11.0-beta"): numeric segments compare numerically, a release sorts
-/// after its pre-releases, and missing trailing segments sort first.
+/// "21.11.0-beta", "0.20.0-beta.9"): numeric core segments compare
+/// numerically with missing segments treated as 0 ("0.24" == "0.24.0"),
+/// a release sorts after its pre-releases, and pre-release identifiers
+/// follow semver rules (numeric identifiers numerically and before
+/// alphanumeric ones). The comparison is a total order.
 fn version_cmp(a: &str, b: &str) -> std::cmp::Ordering {
-    fn segments(v: &str) -> Vec<(u64, &str)> {
-        v.split('.')
+    use std::cmp::Ordering;
+    fn parse(v: &str) -> (Vec<u64>, Vec<String>) {
+        let (core, pre) = match v.split_once('-') {
+            Some((c, p)) => (c, p),
+            None => (v, ""),
+        };
+        let nums = core
+            .split('.')
             .map(|s| {
                 let digits: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
-                (digits.parse().unwrap_or(0), &s[digits.len()..])
+                digits.parse().unwrap_or(0)
             })
-            .collect()
+            .collect();
+        let pre = if pre.is_empty() {
+            Vec::new()
+        } else {
+            pre.split('.').map(str::to_string).collect()
+        };
+        (nums, pre)
     }
-    let (sa, sb) = (segments(a), segments(b));
-    for i in 0..sa.len().max(sb.len()) {
-        let (na, ra) = sa.get(i).copied().unwrap_or((0, "~"));
-        let (nb, rb) = sb.get(i).copied().unwrap_or((0, "~"));
-        let ord = na.cmp(&nb).then_with(|| ra.cmp(rb));
-        if ord != std::cmp::Ordering::Equal {
+    let (na, pa) = parse(a);
+    let (nb, pb) = parse(b);
+    for i in 0..na.len().max(nb.len()) {
+        let ord = na
+            .get(i)
+            .copied()
+            .unwrap_or(0)
+            .cmp(&nb.get(i).copied().unwrap_or(0));
+        if ord != Ordering::Equal {
             return ord;
         }
     }
-    std::cmp::Ordering::Equal
+    // A release is newer than any of its pre-releases.
+    match (pa.is_empty(), pb.is_empty()) {
+        (true, false) => return Ordering::Greater,
+        (false, true) => return Ordering::Less,
+        _ => {}
+    }
+    for i in 0..pa.len().max(pb.len()) {
+        let (ia, ib) = (pa.get(i), pb.get(i));
+        let ord = match (ia, ib) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Less,
+            (Some(_), None) => Ordering::Greater,
+            (Some(x), Some(y)) => {
+                let (xn, yn) = (x.parse::<u64>(), y.parse::<u64>());
+                match (xn, yn) {
+                    (Ok(xn), Ok(yn)) => xn.cmp(&yn),
+                    (Ok(_), Err(_)) => Ordering::Less,
+                    (Err(_), Ok(_)) => Ordering::Greater,
+                    (Err(_), Err(_)) => x.cmp(y),
+                }
+            }
+        };
+        if ord != Ordering::Equal {
+            return ord;
+        }
+    }
+    Ordering::Equal
 }
 
 fn parse_maven_metadata(xml: &str) -> Vec<String> {
@@ -607,6 +652,33 @@ mod tests {
         assert_eq!(version_cmp("21.11.48", "21.11.0-beta"), Greater);
         assert_eq!(version_cmp("0.20.1", "0.16.14"), Greater);
         assert_eq!(version_cmp("61.2.5", "61.2.5"), Equal);
+        assert_eq!(version_cmp("0.30.2", "0.24.0"), Greater);
+        assert_eq!(version_cmp("0.24.0", "0.20.0-beta.9"), Greater);
+        assert_eq!(version_cmp("0.20.2-beta.1", "0.20.0-beta.9"), Greater);
+        assert_eq!(version_cmp("0.24.0", "0.24.0-beta.1"), Greater);
+        assert_eq!(version_cmp("0.20.0-beta.9", "0.20.0-beta.10"), Less);
+        assert_eq!(version_cmp("0.24", "0.24.0"), Equal);
+        // Sorting a jumbled prerelease mix yields the total order above.
+        let mut vs = vec![
+            "0.20.0-beta.9",
+            "0.24.0",
+            "0.20.0-beta.7",
+            "0.30.2",
+            "0.20.2-beta.1",
+            "0.24.0-beta.1",
+        ];
+        vs.sort_by(|a, b| version_cmp(b, a));
+        assert_eq!(
+            vs,
+            vec![
+                "0.30.2",
+                "0.24.0",
+                "0.24.0-beta.1",
+                "0.20.2-beta.1",
+                "0.20.0-beta.9",
+                "0.20.0-beta.7",
+            ]
+        );
         let dir = fixture_dir("sort");
         std::fs::write(
             dir.join("forge-maven-meta.json"),
