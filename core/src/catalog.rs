@@ -21,9 +21,6 @@ const FORGE_MAVEN_META: &str =
     "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml";
 const NEOFORGE_MAVEN_META: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
-/// NeoForge for Minecraft 1.20.1 lives in a separate artifact (47.1.x line).
-const NEOFORGE_1_20_1_META: &str =
-    "https://maven.neoforged.net/releases/net/neoforged/forge/maven-metadata.xml";
 const CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -223,6 +220,8 @@ fn json_loader_list(
     };
     let v: Value = serde_json::from_str(&body)?;
     let arr = v.as_array().ok_or("Invalid loader list")?;
+    // Upstream returns newest first, but sort defensively: the Forge maven
+    // metadata proved that published ordering cannot be trusted.
     let mut items = Vec::with_capacity(arr.len());
     for it in arr {
         let loader = &it["loader"];
@@ -323,6 +322,30 @@ pub fn forge_mc(combined: &str) -> Option<&str> {
     Some(mc)
 }
 
+/// Newest-first ordering for dotted loader versions ("14.23.5.2864",
+/// "21.11.0-beta"): numeric segments compare numerically, a release sorts
+/// after its pre-releases, and missing trailing segments sort first.
+fn version_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    fn segments(v: &str) -> Vec<(u64, &str)> {
+        v.split('.')
+            .map(|s| {
+                let digits: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
+                (digits.parse().unwrap_or(0), &s[digits.len()..])
+            })
+            .collect()
+    }
+    let (sa, sb) = (segments(a), segments(b));
+    for i in 0..sa.len().max(sb.len()) {
+        let (na, ra) = sa.get(i).copied().unwrap_or((0, "~"));
+        let (nb, rb) = sb.get(i).copied().unwrap_or((0, "~"));
+        let ord = na.cmp(&nb).then_with(|| ra.cmp(rb));
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+    }
+    std::cmp::Ordering::Equal
+}
+
 fn parse_maven_metadata(xml: &str) -> Vec<String> {
     // Minimal extraction of <version> entries inside <versions>; the metadata
     // files are small, publisher-controlled Maven XML.
@@ -382,8 +405,7 @@ pub fn loader_versions(
                     stable: None,
                 })
                 .collect();
-            // Maven metadata lists oldest first; present newest first.
-            items.reverse();
+            items.sort_by(|a, b| version_cmp(&b.version, &a.version));
             // Mark the recommended build stable when the promotions file knows it.
             if let Ok((promo, _)) = cached_get(dl, cache, "forge-promotions", FORGE_PROMOTIONS) {
                 if let Ok(v) = serde_json::from_str::<Value>(&promo) {
@@ -396,22 +418,11 @@ pub fn loader_versions(
             }
             Ok(CatalogPage { items, stale })
         }
+        // The 1.20.1-era NeoForge builds (47.1.x, artifact net.neoforged:forge)
+        // are not offered: their metadata still lists 47.1.82 but every file
+        // in that directory returns 404 upstream (verified 2026-11-20), so no
+        // installable build exists. Forge covers 1.20.1 instead.
         LoaderKind::NeoForge => {
-            if mc == "1.20.1" {
-                let (body, stale) =
-                    cached_get(dl, cache, "neoforge-1.20.1-meta", NEOFORGE_1_20_1_META)?;
-                let mut items: Vec<_> = parse_maven_metadata(&body)
-                    .into_iter()
-                    .filter(|v| v.starts_with("47.1."))
-                    .map(|v| LoaderVersion {
-                        kind,
-                        version: v,
-                        stable: None,
-                    })
-                    .collect();
-                items.reverse();
-                return Ok(CatalogPage { items, stale });
-            }
             let (body, stale) = cached_get(dl, cache, "neoforge-maven-meta", NEOFORGE_MAVEN_META)?;
             let mut items: Vec<_> = parse_maven_metadata(&body)
                 .into_iter()
@@ -422,7 +433,7 @@ pub fn loader_versions(
                     stable: None,
                 })
                 .collect();
-            items.reverse();
+            items.sort_by(|a, b| version_cmp(&b.version, &a.version));
             Ok(CatalogPage { items, stale })
         }
     }
@@ -568,6 +579,34 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn loader_versions_sort_newest_first() {
+        use std::cmp::Ordering::*;
+        assert_eq!(version_cmp("47.4.29", "47.4.5"), Greater);
+        assert_eq!(version_cmp("14.23.5.2864", "14.23.5.2859"), Greater);
+        assert_eq!(version_cmp("21.11.48", "21.11.0-beta"), Greater);
+        assert_eq!(version_cmp("0.20.1", "0.16.14"), Greater);
+        assert_eq!(version_cmp("61.2.5", "61.2.5"), Equal);
+        let dir = fixture_dir("sort");
+        std::fs::write(
+            dir.join("forge-maven-meta.json"),
+            r#"<?xml version="1.0"?><metadata><versioning><versions><version>1.12.2-14.23.5.2859</version><version>1.12.2-14.23.5.2864</version><version>1.12.2-14.23.5.2860</version></versions></versioning></metadata>"#,
+        )
+        .unwrap();
+        let dl = crate::vanilla::Downloader::new().unwrap();
+        let page = loader_versions(&dl, &dir, LoaderKind::Forge, "1.12.2").unwrap();
+        let versions: Vec<_> = page.items.iter().map(|v| v.version.as_str()).collect();
+        assert_eq!(
+            versions,
+            [
+                "1.12.2-14.23.5.2864",
+                "1.12.2-14.23.5.2860",
+                "1.12.2-14.23.5.2859"
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Live integration check against the real metadata services. Ignored by
     /// default so the suite stays hermetic; run explicitly before delivery:
     /// cargo test -p andromeda-core catalog_live -- --ignored
@@ -624,8 +663,8 @@ mod tests {
         );
         let nf_1201 = loader_versions(&dl, &dir, LoaderKind::NeoForge, "1.20.1").unwrap();
         assert!(
-            nf_1201.items.iter().any(|v| v.version.starts_with("47.1.")),
-            "neoforge 47.1.x for 1.20.1"
+            nf_1201.items.is_empty(),
+            "neoforge for 1.20.1 must not be offered: upstream files are gone"
         );
         let old = loader_versions(&dl, &dir, LoaderKind::Fabric, "b1.7.3").unwrap();
         assert!(old.items.is_empty(), "no Fabric for old_beta expected");
