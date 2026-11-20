@@ -403,7 +403,12 @@ export component MainWindow inherits Window {
     in-out property <int> version-filter: 0;
     in-out property <int> version-index: 0;
     in-out property <int> loader-index: 0;
+    in property <[bool]> loader-available: [true, false, false, false, false];
+    in property <[string]> loader-version-choices: [];
+    in-out property <int> loader-version-index: 0;
     callback version-refresh(int);
+    callback version-picked(int);
+    callback loader-picked(int);
     in-out property <bool> trash-armed: false;
     in-out property <bool> can-restore: false;
     callback instance-selected(int);
@@ -717,7 +722,7 @@ export component MainWindow inherits Window {
                                             VerticalLayout { spacing: 2px; alignment: start;
                                                 for v[i] in root.version-choices : SectionRow {
                                                     label: v; value: ""; selected: root.version-index == i; entered: 1;
-                                                    clicked => { root.version-index = i; }
+                                                    clicked => { root.version-index = i; root.version-picked(i); }
                                                 }
                                                 if root.version-choices.length == 0 : Text { text: "Loading versions..."; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
                                             }
@@ -726,11 +731,25 @@ export component MainWindow inherits Window {
                                     Text { text: "LOADER (ONE PER PROFILE)"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
                                     HorizontalLayout { spacing: 6px;
                                         for loader[i] in ["Vanilla", "Fabric", "Quilt", "Forge", "NeoForge"] : AppButton {
-                                            horizontal-stretch: 1; label: loader; small: true; primary: root.loader-index == i; enabled: !root.busy;
-                                            clicked => { root.loader-index = i; }
+                                            horizontal-stretch: 1; label: loader; small: true; primary: root.loader-index == i; enabled: !root.busy && (i == 0 || root.loader-available[i]);
+                                            clicked => { root.loader-index = i; root.loader-version-index = 0; root.loader-picked(i); }
                                         }
                                     }
-                                    AppButton { label: "Create profile"; primary: true; enabled: !root.busy && root.version-choices.length > 0; clicked => { root.manage-instance("createsel", root.instance-name); } }
+                                    if root.loader-index != 0 : VerticalLayout { spacing: 4px; alignment: start;
+                                        Text { text: "LOADER BUILD"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
+                                        Rectangle { height: 120px; border-radius: 8px; background: ThemePalette.field; border-width: 1px; border-color: ThemePalette.border; clip: true;
+                                            ScrollView { x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
+                                                VerticalLayout { spacing: 2px; alignment: start;
+                                                    for b[i] in root.loader-version-choices : SectionRow {
+                                                        label: b; value: ""; selected: root.loader-version-index == i; entered: 1;
+                                                        clicked => { root.loader-version-index = i; }
+                                                    }
+                                                    if root.loader-version-choices.length == 0 : Text { text: root.busy ? "Loading builds..." : "No builds published for this version."; font-family: ThemePalette.body-font; font-size: 12px; color: ThemePalette.muted; }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    AppButton { label: "Create profile"; primary: true; enabled: !root.busy && root.version-choices.length > 0 && (root.loader-index == 0 || root.loader-version-choices.length > 0); clicked => { root.manage-instance("createsel", root.instance-name); } }
                                     Rectangle { height: 1px; background: ThemePalette.border; }
                                     Text { text: "SELECTED IN PLAY"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
                                     Text { text: root.current-profile; wrap: word-wrap; font-family: ThemePalette.body-font; font-size: 14px; font-weight: 600; color: ThemePalette.text-color; }
