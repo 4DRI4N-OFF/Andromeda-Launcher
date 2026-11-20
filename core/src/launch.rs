@@ -214,6 +214,29 @@ pub fn prepare_quilt(
         Some(ClientLoader::Quilt(loader)),
     )
 }
+pub fn prepare_legacyfabric(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    loader: &str,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some(ClientLoader::LegacyFabric(loader)),
+    )
+}
 /// Pinned Forge-family launch, using only a dedicated installer cache.
 pub fn prepare_upstream(
     root: &Path,
@@ -239,6 +262,7 @@ enum ClientLoader<'a> {
     Quilt(&'a str),
     Forge(&'a str),
     NeoForge(&'a str),
+    LegacyFabric(&'a str),
 }
 fn prepare_identity(
     root: &Path,
@@ -311,6 +335,17 @@ fn prepare_identity(
                 Ok(crate::fabric_install::InstalledFabric {
                     profile: q.profile,
                     libraries: q.libraries,
+                })
+            }
+            ClientLoader::LegacyFabric(loader) => {
+                let l = crate::legacyfabric_install::install(
+                    &root.join("legacyfabric-libraries"),
+                    version,
+                    loader,
+                )?;
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: l.profile,
+                    libraries: l.libraries,
                 })
             }
             ClientLoader::Forge(loader_version) | ClientLoader::NeoForge(loader_version) => {

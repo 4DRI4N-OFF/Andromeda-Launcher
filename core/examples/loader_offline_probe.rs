@@ -17,6 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "quilt" => ("1.21.11", "0.30.2"),
         "forge" => ("1.21.11", "61.2.5"),
         "neoforge" => ("1.21.11", "21.11.48"),
+        "legacyfabric" => ("1.8.9", "0.20.1"),
         _ => return Err("Unsupported test loader".into()),
     };
     let (mc, loader_version, rest): (String, String, &[String]) = match a.get(4).map(String::as_str)
@@ -33,6 +34,28 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Install or re-verify the requested vanilla version first; downloads
     // are hash-checked by the downloader.
     andromeda_core::vanilla::Downloader::new()?.install(root, &mc)?;
+    if a[3].as_str() == "legacyfabric" {
+        // Install-pipeline E2E only: Minecraft 1.3-1.13.2 predates the modern
+        // launch format, so plan assembly is a separate phase (launch.rs
+        // rejects it explicitly until then). Here we verify the real
+        // LegacyFabric download/install path end to end.
+        let l = andromeda_core::legacyfabric_install::install(
+            &root.join("legacyfabric-libraries"),
+            &mc,
+            &loader_version,
+        )?;
+        andromeda_core::legacyfabric::validate_profile(&l.profile, &mc, &loader_version)?;
+        for f in &l.libraries {
+            if !f.is_file() {
+                return Err("Installed LegacyFabric library missing from disk".into());
+            }
+        }
+        println!(
+            "legacyfabric install verified: {} libraries for {mc} (loader {loader_version})",
+            l.libraries.len()
+        );
+        return Ok(());
+    }
     let plan = match a[3].as_str() {
         "fabric" => andromeda_core::launch::prepare_fabric(
             root,

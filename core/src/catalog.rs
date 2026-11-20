@@ -15,6 +15,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 const MOJANG_MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 const FABRIC_META: &str = "https://meta.fabricmc.net/v2/versions/loader";
 const QUILT_META: &str = "https://meta.quiltmc.org/v3/versions/loader";
+const LEGACYFABRIC_META: &str = "https://meta.legacyfabric.net/v2/versions/loader";
 const FORGE_PROMOTIONS: &str =
     "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 const FORGE_MAVEN_META: &str =
@@ -88,10 +89,19 @@ pub enum LoaderKind {
     Quilt,
     Forge,
     NeoForge,
+    /// Standard fabric-loader builds for Minecraft 1.3-1.13.2 with
+    /// LegacyFabric intermediary (meta.legacyfabric.net).
+    LegacyFabric,
 }
 impl LoaderKind {
-    pub fn all() -> [Self; 4] {
-        [Self::Fabric, Self::Quilt, Self::Forge, Self::NeoForge]
+    pub fn all() -> [Self; 5] {
+        [
+            Self::Fabric,
+            Self::Quilt,
+            Self::Forge,
+            Self::NeoForge,
+            Self::LegacyFabric,
+        ]
     }
 }
 
@@ -211,6 +221,7 @@ fn json_loader_list(
     let (base, name) = match kind {
         LoaderKind::Fabric => (FABRIC_META, format!("fabric-{mc}")),
         LoaderKind::Quilt => (QUILT_META, format!("quilt-{mc}")),
+        LoaderKind::LegacyFabric => (LEGACYFABRIC_META, format!("legacyfabric-{mc}")),
         _ => unreachable!(),
     };
     let url = format!("{base}/{mc}");
@@ -443,7 +454,9 @@ pub fn loader_versions(
         return Err("Invalid Minecraft version".into());
     }
     match kind {
-        LoaderKind::Fabric | LoaderKind::Quilt => json_loader_list(dl, cache, kind, mc),
+        LoaderKind::Fabric | LoaderKind::Quilt | LoaderKind::LegacyFabric => {
+            json_loader_list(dl, cache, kind, mc)
+        }
         LoaderKind::Forge => {
             let (body, stale) = cached_get(dl, cache, "forge-maven-meta", FORGE_MAVEN_META)?;
             let mut items: Vec<_> = parse_maven_metadata(&body)
@@ -782,6 +795,22 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn legacyfabric_versions_parse_from_v2_list() {
+        let dir = fixture_dir("lf189");
+        std::fs::write(
+            dir.join("legacyfabric-1.8.9.json"),
+            r#"[{"loader":{"separator":".","build":1,"maven":"net.fabricmc:fabric-loader:0.20.1","version":"0.20.1","stable":true},"intermediary":{"maven":"net.legacyfabric:intermediary:1.8.9","version":"1.8.9","stable":true},"launcherMeta":{"version":2,"min_java_version":8,"libraries":{"client":[],"common":[],"server":[]}}},{"loader":{"separator":".","build":2,"maven":"net.fabricmc:fabric-loader:0.20.0","version":"0.20.0","stable":true},"intermediary":{"maven":"net.legacyfabric:intermediary:1.8.9","version":"1.8.9","stable":true},"launcherMeta":{"version":2,"min_java_version":8,"libraries":{"client":[],"common":[],"server":[]}}}]"#,
+        )
+        .unwrap();
+        let dl = crate::vanilla::Downloader::new().unwrap();
+        let page = loader_versions(&dl, &dir, LoaderKind::LegacyFabric, "1.8.9").unwrap();
+        let versions: Vec<_> = page.items.iter().map(|v| v.version.as_str()).collect();
+        assert_eq!(versions, ["0.20.1", "0.20.0"]);
+        assert!(page.items.iter().all(|v| v.kind == LoaderKind::LegacyFabric));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Live integration check against the real metadata services. Ignored by
     /// default so the suite stays hermetic; run explicitly before delivery:
     /// cargo test -p andromeda-core catalog_live -- --ignored
@@ -848,6 +877,21 @@ mod tests {
         assert!(old.items.is_empty(), "no Fabric for old_beta expected");
         let avail = available_loaders(&dl, &dir, "1.21.11").unwrap();
         assert_eq!(avail.len(), 4, "all four loaders publish 1.21.11 builds");
+        // LegacyFabric covers Minecraft 1.3-1.13.2 only; loader 0.20.1 was
+        // additionally verified installable for 1.8.9 on 2026-11-20 (real
+        // download, sha1-verified libraries, classifier-only LWJGL natives).
+        let lf = loader_versions(&dl, &dir, LoaderKind::LegacyFabric, "1.8.9").unwrap();
+        assert!(
+            lf.items.iter().any(|v| v.version == "0.20.1"),
+            "legacyfabric 0.20.1 for 1.8.9"
+        );
+        let lf_new = loader_versions(&dl, &dir, LoaderKind::LegacyFabric, "1.21.11").unwrap();
+        assert!(lf_new.items.is_empty(), "no LegacyFabric for 1.21.11 expected");
+        let avail_old = available_loaders(&dl, &dir, "1.8.9").unwrap();
+        assert!(
+            avail_old.contains(&LoaderKind::LegacyFabric),
+            "LegacyFabric must be offered for 1.8.9"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
