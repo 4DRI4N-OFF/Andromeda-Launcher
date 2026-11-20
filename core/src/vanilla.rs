@@ -86,6 +86,12 @@ impl Downloader {
         })
     }
     pub fn json(&self, url: &str) -> Result<Value> {
+        Ok(serde_json::from_str(&self.text(url)?)?)
+    }
+    pub fn text(&self, url: &str) -> Result<String> {
+        if !url.starts_with("https://") {
+            return Err("Catalog URL must use HTTPS".into());
+        }
         let mut last = None;
         for attempt in 0..3 {
             match self
@@ -93,7 +99,7 @@ impl Downloader {
                 .get(url)
                 .send()
                 .and_then(|r| r.error_for_status())
-                .and_then(|r| r.json())
+                .and_then(|r| r.text())
             {
                 Ok(v) => return Ok(v),
                 Err(e) => last = Some(e),
@@ -420,3 +426,4 @@ mod tests {
         fs::remove_dir_all(d).unwrap();
     }
 }
+

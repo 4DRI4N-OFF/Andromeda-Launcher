@@ -1,5 +1,6 @@
 //! Andromeda core: logic without UI. Everything here is testable without opening a window.
 pub mod auth;
+pub mod catalog;
 pub mod instances;
 pub mod launch;
 pub mod session_store;
@@ -16,3 +17,4 @@ pub mod upstream_install;
 pub mod themes;
 
 pub mod motion;
+
