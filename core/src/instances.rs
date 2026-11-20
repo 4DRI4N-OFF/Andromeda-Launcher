@@ -20,7 +20,7 @@ pub enum Loader {
 /// a specific Minecraft version is checked against the live catalog before
 /// creation (see catalog::loader_versions); this check is purely structural
 /// so that stored instances stay readable offline.
-fn validate_loader_version(version: &str) -> Result<()> {
+pub fn validate_loader_version(version: &str) -> Result<()> {
     if version.is_empty()
         || version.len() > 64
         || !version

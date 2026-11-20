@@ -22,27 +22,124 @@ impl Kind {
             Self::NeoForge => "21.11.48",
         }
     }
-    fn id(self) -> &'static str {
-        match self {
-            Self::Forge => "1.21.11-forge-61.2.5",
-            Self::NeoForge => "neoforge-21.11.48",
-        }
-    }
-    fn main(self) -> &'static str {
-        match self {
-            Self::Forge => "net.minecraftforge.bootstrap.ForgeBootstrap",
-            Self::NeoForge => "net.neoforged.fml.startup.Client",
-        }
-    }
-    fn url(self) -> &'static str {
-        match self {Self::Forge=>"https://maven.minecraftforge.net/net/minecraftforge/forge/1.21.11-61.2.5/forge-1.21.11-61.2.5-installer.jar",Self::NeoForge=>"https://maven.neoforged.net/releases/net/neoforged/neoforge/21.11.48/neoforge-21.11.48-installer.jar"}
-    }
     fn hash(self) -> &'static str {
         match self {
             Self::Forge => "4b1a7d08cd598f7e2513c10c239acc581b3934a455ea9752a1ef43de02914221",
             Self::NeoForge => "1f14a4bac4aa885a497550fa5a8374451b7014cec27e1bb69ab16742fb689db0",
         }
     }
+}
+
+/// Loader entry points observed in real installer profiles across
+/// generations (Forge 1.12.2 through 1.21.11, NeoForge 1.20.1 through
+/// 1.21.11; surveyed 2026-11-20). A profile whose main class is not in this
+/// list is rejected.
+const MAIN_CLASSES: [&str; 5] = [
+    "net.minecraftforge.bootstrap.ForgeBootstrap",
+    "cpw.mods.bootstraplauncher.BootstrapLauncher",
+    "cpw.mods.modlauncher.Launcher",
+    "net.minecraft.launchwrapper.Launch",
+    "net.neoforged.fml.startup.Client",
+];
+
+/// A specific installer published upstream: loader kind, Minecraft version
+/// and bare loader build ("61.2.5", "21.11.48", "47.1.106").
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Spec {
+    kind: Kind,
+    mc: String,
+    version: String,
+}
+impl Spec {
+    pub fn new(kind: Kind, mc: &str, version: &str) -> Result<Self> {
+        crate::instances::validate_mc_id(mc)?;
+        crate::instances::validate_loader_version(version)?;
+        Ok(Self {
+            kind,
+            mc: mc.to_owned(),
+            version: version.to_owned(),
+        })
+    }
+    /// The build this launcher originally pinned, kept as a known-good spec.
+    pub fn pinned(kind: Kind) -> Self {
+        Self {
+            kind,
+            mc: "1.21.11".into(),
+            version: kind.version().into(),
+        }
+    }
+    pub fn kind(&self) -> Kind {
+        self.kind
+    }
+    pub fn mc(&self) -> &str {
+        &self.mc
+    }
+    pub fn version(&self) -> &str {
+        &self.version
+    }
+    fn is_pinned(&self) -> bool {
+        self.mc == "1.21.11" && self.version == self.kind.version()
+    }
+    /// NeoForge for Minecraft 1.20.1 is published in a separate artifact
+    /// that follows the Forge layout (combined "1.20.1-47.1.106").
+    fn neoforge_legacy_artifact(&self) -> bool {
+        self.kind == Kind::NeoForge && self.version.starts_with("47.1.")
+    }
+    /// Directory/artifact version component used upstream.
+    fn combined(&self) -> String {
+        match self.kind {
+            Kind::Forge => format!("{}-{}", self.mc, self.version),
+            Kind::NeoForge if self.neoforge_legacy_artifact() => {
+                format!("{}-{}", self.mc, self.version)
+            }
+            Kind::NeoForge => self.version.clone(),
+        }
+    }
+    /// Maven artifact directory: forge or neoforge.
+    fn artifact(&self) -> &'static str {
+        match self.kind {
+            Kind::Forge => "forge",
+            Kind::NeoForge if self.neoforge_legacy_artifact() => "forge",
+            Kind::NeoForge => "neoforge",
+        }
+    }
+    pub fn installer_url(&self) -> String {
+        let (c, a) = (self.combined(), self.artifact());
+        match self.kind {
+            Kind::Forge => format!(
+                "https://maven.minecraftforge.net/net/minecraftforge/forge/{c}/forge-{c}-installer.jar"
+            ),
+            Kind::NeoForge => format!(
+                "https://maven.neoforged.net/releases/net/neoforged/{a}/{c}/{a}-{c}-installer.jar"
+            ),
+        }
+    }
+    /// Version id the installer profile must declare.
+    pub fn id(&self) -> String {
+        match self.kind {
+            Kind::Forge => format!("{}-forge-{}", self.mc, self.version),
+            // Verified 2026-11-20: the 1.20.1 NeoForge profile declares
+            // id "1.20.1-forge-47.1.106", following the Forge pattern.
+            Kind::NeoForge if self.neoforge_legacy_artifact() => {
+                format!("{}-forge-{}", self.mc, self.version)
+            }
+            Kind::NeoForge => format!("neoforge-{}", self.version),
+        }
+    }
+    /// Digest embedded in this launcher, known only for the pinned builds.
+    fn embedded_hash(&self) -> Option<&'static str> {
+        self.is_pinned().then(|| self.kind.hash())
+    }
+}
+/// Extract the digest from a Maven `.sha256` sidecar: the first
+/// whitespace-separated token, 64 lowercase hex digits.
+fn parse_sha256_sidecar(body: &str) -> Result<String> {
+    let token = body.split_whitespace().next().ok_or("Empty sidecar")?;
+    let token = token.to_ascii_lowercase();
+    if token.len() != 64 || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("Invalid sidecar digest".into());
+    }
+    Ok(token)
 }
 pub struct Installed {
     pub profile: Value,
@@ -112,19 +209,20 @@ fn publish(p: &Path, bytes: &[u8]) -> Result<()> {
     result?;
     Ok(())
 }
-fn profile(jar: &Path, kind: Kind) -> Result<Value> {
+fn profile(jar: &Path, spec: &Spec) -> Result<Value> {
     let mut zip = zip::ZipArchive::new(fs::File::open(jar)?)?;
     let f = zip.by_name("version.json")?;
     if f.size() > 2 * 1024 * 1024 {
         return Err("Installer profile too large".into());
     }
     let p: Value = serde_json::from_reader(f)?;
-    validate_profile(&p, kind)?;
+    validate_profile(&p, spec)?;
     Ok(p)
 }
-fn validate_profile(p: &Value, kind: Kind) -> Result<()> {
-    if p["id"] != kind.id() || p["inheritsFrom"] != "1.21.11" || p["mainClass"] != kind.main() {
-        return Err("Installer profile does not match the selected pinned loader".into());
+fn validate_profile(p: &Value, spec: &Spec) -> Result<()> {
+    let main = p["mainClass"].as_str().unwrap_or("");
+    if p["id"] != spec.id() || p["inheritsFrom"] != spec.mc() || !MAIN_CLASSES.contains(&main) {
+        return Err("Installer profile does not match the selected loader".into());
     }
     let libs = p["libraries"]
         .as_array()
@@ -156,45 +254,74 @@ fn validate_profile(p: &Value, kind: Kind) -> Result<()> {
 }
 /// `java` and `vanilla` must have been checked by the vanilla launch-plan builder.
 pub fn install(root: &Path, java: &Path, vanilla: &Path, kind: Kind) -> Result<Installed> {
+    install_spec(root, java, vanilla, &Spec::pinned(kind))
+}
+/// Install any published upstream build. The installer digest comes from the
+/// Maven `.sha256` sidecar (cached next to the installer); pinned builds must
+/// additionally match the digest embedded in this launcher.
+pub fn install_spec(root: &Path, java: &Path, vanilla: &Path, spec: &Spec) -> Result<Installed> {
     let root = std::path::absolute(root)?;
     fs::create_dir_all(&root)?;
     let mut existing = Vec::new();
     tree(&root, &mut existing)?;
     let jar = root.join("installer.jar");
+    let sidecar = root.join("installer.sha256");
+    let expected = match fs::read_to_string(&sidecar)
+        .ok()
+        .and_then(|body| parse_sha256_sidecar(&body).ok())
+    {
+        Some(hash) => hash,
+        None => {
+            let body = crate::vanilla::Downloader::new()?
+                .text(&format!("{}.sha256", spec.installer_url()))?;
+            let hash = parse_sha256_sidecar(&body)?;
+            if let Some(embedded) = spec.embedded_hash() {
+                if hash != embedded {
+                    return Err("Sidecar digest does not match the pinned digest".into());
+                }
+            }
+            if !sidecar.exists() {
+                publish(&sidecar, hash.as_bytes())?;
+            }
+            hash
+        }
+    };
     if !jar.exists() {
         let c = reqwest::blocking::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(120))
             .build()?;
-        let r = c.get(kind.url()).send()?.error_for_status()?;
+        let r = c.get(spec.installer_url()).send()?.error_for_status()?;
         if r.content_length().is_some_and(|n| n > 64 * 1024 * 1024) {
             return Err("Installer too large".into());
         }
         let mut bytes = Vec::new();
         r.take(64 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
-        if bytes.len() > 64 * 1024 * 1024 || format!("{:x}", Sha256::digest(&bytes)) != kind.hash()
-        {
+        if bytes.len() > 64 * 1024 * 1024 || format!("{:x}", Sha256::digest(&bytes)) != expected {
             return Err("Installer digest mismatch".into());
         }
         publish(&jar, &bytes)?;
     }
-    if digest(&jar)? != kind.hash() {
+    if digest(&jar)? != expected {
         return Err("Existing installer digest mismatch; not overwritten".into());
     }
-    let profile = profile(&jar, kind)?;
+    let profile = profile(&jar, spec)?;
     let receipt = root.join("verified-install.json");
     let libraries = root.join("libraries");
     if !receipt.exists() {
-        let versions = root.join("versions/1.21.11");
+        let versions = root.join(format!("versions/{}", spec.mc()));
         fs::create_dir_all(&versions)?;
         // Only copy the selected, verified vanilla version. No account or launcher settings are copied.
         for ext in ["jar", "json"] {
-            let dst = versions.join(format!("1.21.11.{ext}"));
+            let dst = versions.join(format!("{}.{ext}", spec.mc()));
             if dst.exists() {
                 plain(&dst)?;
             }
-            fs::copy(vanilla.join(format!("versions/1.21.11/1.21.11.{ext}")), dst)?;
+            fs::copy(
+                vanilla.join(format!("versions/{0}/{0}.{ext}", spec.mc())),
+                dst,
+            )?;
         }
         let lp = root.join("launcher_profiles.json");
         if !lp.exists() {
@@ -256,7 +383,7 @@ pub fn install(root: &Path, java: &Path, vanilla: &Path, kind: Kind) -> Result<I
         publish(
             &receipt,
             &serde_json::to_vec(
-                &json!({"id":kind.id(),"installer_sha256":kind.hash(),"files":checks}),
+                &json!({"id":spec.id(),"installer_sha256":expected,"files":checks}),
             )?,
         )?;
     }
@@ -265,7 +392,7 @@ pub fn install(root: &Path, java: &Path, vanilla: &Path, kind: Kind) -> Result<I
         return Err("Installer receipt too large".into());
     }
     let checks: Value = serde_json::from_slice(&fs::read(&receipt)?)?;
-    if checks["id"] != kind.id() || checks["installer_sha256"] != kind.hash() {
+    if checks["id"] != spec.id() || checks["installer_sha256"] != expected {
         return Err("Installer receipt mismatch".into());
     }
     let files = checks["files"]
@@ -298,10 +425,18 @@ pub fn install(root: &Path, java: &Path, vanilla: &Path, kind: Kind) -> Result<I
             return Err("Cached launch library failed official verification".into());
         }
     }
-    if kind == Kind::NeoForge {
-        for required in ["libraries/net/neoforged/minecraft-client-patched/21.11.48/minecraft-client-patched-21.11.48.jar","libraries/net/neoforged/neoforge/21.11.48/neoforge-21.11.48-universal.jar"] {
-   if !files.iter().any(|f|f["path"].as_str()==Some(required)){return Err("Required generated NeoForge file absent from receipt".into());}
-  }
+    if spec.kind() == Kind::NeoForge {
+        // Files the installer must have generated, in the upstream layout of
+        // this artifact (neoforge modern, forge for the 1.20.1 line).
+        let (a, c) = (spec.artifact(), spec.combined());
+        for required in [
+            format!("libraries/net/neoforged/minecraft-client-patched/{c}/minecraft-client-patched-{c}.jar"),
+            format!("libraries/net/neoforged/{a}/{c}/{a}-{c}-universal.jar"),
+        ] {
+            if !files.iter().any(|f| f["path"].as_str() == Some(&required)) {
+                return Err("Required generated NeoForge file absent from receipt".into());
+            }
+        }
     }
     let mut launch_libraries = Vec::new();
     for lib in profile["libraries"]
@@ -329,19 +464,93 @@ mod tests {
     }
     #[test]
     fn pinned_profile() {
-        assert!(validate_profile(&p(), Kind::Forge).is_ok());
-        assert!(validate_profile(&p(), Kind::NeoForge).is_err());
+        assert!(validate_profile(&p(), &Spec::pinned(Kind::Forge)).is_ok());
+        assert!(validate_profile(&p(), &Spec::pinned(Kind::NeoForge)).is_err());
     }
     #[test]
     fn traversal() {
         let mut p = p();
         p["libraries"][0]["downloads"]["artifact"]["path"] = json!("../evil.jar");
-        assert!(validate_profile(&p, Kind::Forge).is_err());
+        assert!(validate_profile(&p, &Spec::pinned(Kind::Forge)).is_err());
     }
     #[test]
     fn wrong_game() {
         let mut p = p();
         p["inheritsFrom"] = json!("1.21.10");
-        assert!(validate_profile(&p, Kind::Forge).is_err());
+        assert!(validate_profile(&p, &Spec::pinned(Kind::Forge)).is_err());
+    }
+    #[test]
+    fn spec_urls_cover_every_generation() {
+        let forge = Spec::new(Kind::Forge, "1.20.1", "47.4.29").unwrap();
+        assert_eq!(
+            forge.installer_url(),
+            "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.29/forge-1.20.1-47.4.29-installer.jar"
+        );
+        assert_eq!(forge.id(), "1.20.1-forge-47.4.29");
+        let nf = Spec::new(Kind::NeoForge, "1.21.1", "21.1.267").unwrap();
+        assert_eq!(
+            nf.installer_url(),
+            "https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.267/neoforge-21.1.267-installer.jar"
+        );
+        assert_eq!(nf.id(), "neoforge-21.1.267");
+        // The 1.20.1-era NeoForge artifact follows the Forge layout,
+        // including the "-forge-" profile id (verified 2026-11-20).
+        let nf1201 = Spec::new(Kind::NeoForge, "1.20.1", "47.1.106").unwrap();
+        assert_eq!(
+            nf1201.installer_url(),
+            "https://maven.neoforged.net/releases/net/neoforged/forge/1.20.1-47.1.106/forge-1.20.1-47.1.106-installer.jar"
+        );
+        assert_eq!(nf1201.id(), "1.20.1-forge-47.1.106");
+        assert!(Spec::new(Kind::Forge, "../etc", "47.4.29").is_err());
+        assert!(Spec::new(Kind::Forge, "1.20.1", "..\\x").is_err());
+    }
+    #[test]
+    fn every_generation_main_class_is_accepted() {
+        for (mc, version, main) in [
+            (
+                "1.12.2",
+                "14.23.5.2864",
+                "net.minecraft.launchwrapper.Launch",
+            ),
+            ("1.16.5", "36.2.42", "cpw.mods.modlauncher.Launcher"),
+            (
+                "1.20.1",
+                "47.4.29",
+                "cpw.mods.bootstraplauncher.BootstrapLauncher",
+            ),
+            (
+                "1.21.11",
+                "61.2.5",
+                "net.minecraftforge.bootstrap.ForgeBootstrap",
+            ),
+        ] {
+            let spec = Spec::new(Kind::Forge, mc, version).unwrap();
+            let mut p = p();
+            p["id"] = json!(spec.id());
+            p["inheritsFrom"] = json!(mc);
+            p["mainClass"] = json!(main);
+            assert!(validate_profile(&p, &spec).is_ok(), "{mc} {version}");
+        }
+        // An unknown entry point stays rejected even with a matching id.
+        let spec = Spec::new(Kind::Forge, "1.20.1", "47.4.29").unwrap();
+        let mut p = p();
+        p["id"] = json!(spec.id());
+        p["inheritsFrom"] = json!("1.20.1");
+        p["mainClass"] = json!("com.evil.Payload");
+        assert!(validate_profile(&p, &spec).is_err());
+    }
+    #[test]
+    fn sidecar_parsing() {
+        assert_eq!(
+            parse_sha256_sidecar(&format!("{}  forge-installer.jar", "a".repeat(64))).unwrap(),
+            "a".repeat(64)
+        );
+        assert_eq!(
+            parse_sha256_sidecar(&format!("{}\n", "B".repeat(64))).unwrap(),
+            "b".repeat(64)
+        );
+        assert!(parse_sha256_sidecar("too-short").is_err());
+        assert!(parse_sha256_sidecar("").is_err());
+        assert!(parse_sha256_sidecar(&"z".repeat(64)).is_err());
     }
 }
