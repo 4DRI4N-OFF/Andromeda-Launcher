@@ -292,15 +292,21 @@ fn prepare_identity(
     if v["id"] != version {
         return Err("Unexpected installed version metadata".into());
     }
-    // Modern launch requires the arguments object and a Mojang Java runtime.
-    // Versions older than that (minecraftArguments string, no javaVersion)
-    // are a separate legacy phase and fail here with a clear error.
-    if v["arguments"].is_null() {
-        return Err(
-            "This version predates the modern launch format; legacy versions are not supported yet"
-                .into(),
-        );
-    }
+    // Modern versions declare an arguments object. Versions up to 1.12.2
+    // declare a minecraftArguments string instead, which the legacy path
+    // below converts; anything without either fails with a clear error.
+    let legacy_args: Option<String> = if v["arguments"].is_null() {
+        match v["minecraftArguments"].as_str() {
+            Some(s) if !s.is_empty() => Some(s.to_owned()),
+            _ => {
+                return Err(
+                    "This version declares no launch arguments; it is not supported yet".into(),
+                )
+            }
+        }
+    } else {
+        None
+    };
     if v["javaVersion"]["majorVersion"].as_u64().is_none() {
         return Err(
             "This version declares no Java runtime; legacy versions are not supported yet".into(),
@@ -324,6 +330,7 @@ fn prepare_identity(
     let natives = root.join("natives").join(version);
     fs::create_dir_all(&natives)?;
     let mut library_directory = root.join("libraries");
+    let mut loader_natives: Vec<std::path::PathBuf> = Vec::new();
     let fabric = fabric_loader
         .map(|loader| match loader {
             ClientLoader::Fabric(loader) => {
@@ -343,6 +350,7 @@ fn prepare_identity(
                     version,
                     loader,
                 )?;
+                loader_natives = l.natives.clone();
                 Ok(crate::fabric_install::InstalledFabric {
                     profile: l.profile,
                     libraries: l.libraries,
@@ -414,6 +422,10 @@ fn prepare_identity(
     for jar in native_jars {
         extract_native(&jar, &natives)?;
     }
+    // Loader-published natives (e.g. patched LWJGL) override the vanilla set.
+    for jar in loader_natives {
+        extract_native(&jar, &natives)?;
+    }
     classpath.push(client);
     let ai = &v["assetIndex"];
     verified(
@@ -468,6 +480,8 @@ fn prepare_identity(
             "classpath_separator",
             if cfg!(windows) { ";" } else { ":" }.to_owned(),
         ),
+        // Legacy minecraftArguments (up to 1.12.2) reference this.
+        ("user_properties", "{}".to_owned()),
         (
             "classpath",
             classpath
@@ -478,7 +492,15 @@ fn prepare_identity(
         ),
     ]);
     let mut args = vec![format!("-Xmx{memory_mb}M")];
-    args.extend(arguments(&v["arguments"]["jvm"], &vars)?);
+    if legacy_args.is_some() {
+        // Legacy versions declare no JVM arguments; the launcher supplies
+        // the standard classpath/natives wiring every legacy launcher uses.
+        args.push(expand("-Djava.library.path=${natives_directory}", &vars)?);
+        args.push("-cp".to_owned());
+        args.push(expand("${classpath}", &vars)?);
+    } else {
+        args.extend(arguments(&v["arguments"]["jvm"], &vars)?);
+    }
     if let Some(logging) = v["logging"].get("client") {
         let file = verified(
             &logging["file"],
@@ -504,7 +526,13 @@ fn prepare_identity(
         )?
         .to_owned(),
     );
-    args.extend(arguments(&v["arguments"]["game"], &vars)?);
+    if let Some(mc_args) = &legacy_args {
+        for token in mc_args.split_whitespace() {
+            args.push(expand(token, &vars)?);
+        }
+    } else {
+        args.extend(arguments(&v["arguments"]["game"], &vars)?);
+    }
     if let Some(f) = &fabric {
         if let Some(game) = f.profile["arguments"].get("game") {
             args.extend(arguments(game, &vars)?);
