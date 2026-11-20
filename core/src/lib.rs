@@ -14,6 +14,8 @@ pub mod babric;
 pub mod babric_install;
 pub mod ornithe;
 pub mod ornithe_install;
+pub mod liteloader;
+pub mod liteloader_install;
 pub mod legacyfabric;
 pub mod legacyfabric_install;
 pub mod quilt;

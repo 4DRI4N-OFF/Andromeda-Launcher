@@ -18,6 +18,7 @@ const QUILT_META: &str = "https://meta.quiltmc.org/v3/versions/loader";
 const LEGACYFABRIC_META: &str = "https://meta.legacyfabric.net/v2/versions/loader";
 const BABRIC_META: &str = "https://meta.babric.glass-launcher.net/v2/versions/loader";
 const ORNITHE_META: &str = "https://meta.ornithemc.net/v2/versions/loader";
+const LITELOADER_META: &str = "https://dl.liteloader.com/versions/versions.json";
 const FORGE_PROMOTIONS: &str =
     "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 const FORGE_MAVEN_META: &str =
@@ -100,9 +101,12 @@ pub enum LoaderKind {
     /// Ornithe loader builds for Minecraft b1.7.3 through 1.13.2 with
     /// calamus intermediary (meta.ornithemc.net).
     Ornithe,
+    /// LiteLoader builds for Minecraft 1.5.2 through 1.12.2, launched
+    /// through launchwrapper's tweaker (dl.liteloader.com).
+    LiteLoader,
 }
 impl LoaderKind {
-    pub fn all() -> [Self; 7] {
+    pub fn all() -> [Self; 8] {
         [
             Self::Fabric,
             Self::Quilt,
@@ -111,6 +115,7 @@ impl LoaderKind {
             Self::LegacyFabric,
             Self::Babric,
             Self::Ornithe,
+            Self::LiteLoader,
         ]
     }
 }
@@ -473,6 +478,44 @@ pub fn loader_versions(
         | LoaderKind::Ornithe => {
             json_loader_list(dl, cache, kind, mc)
         }
+        LoaderKind::LiteLoader => {
+            let (body, stale) = match cached_get(dl, cache, "liteloader-versions", LITELOADER_META)
+            {
+                Ok(v) => v,
+                Err(_) => {
+                    return Ok(CatalogPage {
+                        items: Vec::new(),
+                        stale: false,
+                    })
+                }
+            };
+            let v: Value = serde_json::from_str(&body)?;
+            if v["versions"].get(mc).is_none() {
+                return Ok(CatalogPage {
+                    items: Vec::new(),
+                    stale,
+                });
+            }
+            // One current build per Minecraft version; the published file
+            // stem ("1.7.10_04") identifies it.
+            let selected = crate::liteloader::select(&v, mc)?;
+            let label = selected
+                .file
+                .trim_start_matches("liteloader-")
+                .trim_end_matches(".jar")
+                .to_owned();
+            Ok(CatalogPage {
+                items: vec![LoaderVersion {
+                    kind,
+                    version: label,
+                    stable: Some(!matches!(
+                        selected.repo,
+                        crate::liteloader::Repo::M2Snapshot
+                    )),
+                }],
+                stale,
+            })
+        }
         LoaderKind::Forge => {
             let (body, stale) = cached_get(dl, cache, "forge-maven-meta", FORGE_MAVEN_META)?;
             let mut items: Vec<_> = parse_maven_metadata(&body)
@@ -533,7 +576,7 @@ pub fn loader_versions(
     }
 }
 
-/// Which of the four loaders publish at least one build for `mc`.
+/// Which loaders publish at least one build for `mc`.
 pub fn available_loaders(
     dl: &crate::vanilla::Downloader,
     cache: &Path,

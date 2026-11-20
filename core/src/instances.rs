@@ -18,6 +18,7 @@ pub enum Loader {
     LegacyFabric { version: String },
     Babric { version: String },
     Ornithe { version: String },
+    LiteLoader { version: String },
 }
 /// Loader versions are short Maven-style version strings. Compatibility with
 /// a specific Minecraft version is checked against the live catalog before
@@ -44,6 +45,7 @@ impl Loader {
             | Self::LegacyFabric { version } => version,
             Self::Babric { version } => version,
             Self::Ornithe { version } => version,
+            Self::LiteLoader { version } => version,
         };
         validate_loader_version(version)
     }
@@ -235,6 +237,7 @@ pub fn create_selected(
             crate::catalog::LoaderKind::LegacyFabric => Loader::LegacyFabric { version },
             crate::catalog::LoaderKind::Babric => Loader::Babric { version },
             crate::catalog::LoaderKind::Ornithe => Loader::Ornithe { version },
+            crate::catalog::LoaderKind::LiteLoader => Loader::LiteLoader { version },
         }
     });
     create_for_version(root, name, local_name, memory_mb, selection.mc(), loader)

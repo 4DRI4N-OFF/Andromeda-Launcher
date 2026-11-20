@@ -288,6 +288,33 @@ pub fn prepare_ornithe(
         Some(ClientLoader::Ornithe(loader)),
     )
 }
+/// LiteLoader launch: launchwrapper tweaker builds for Minecraft 1.5.2-1.12.2.
+pub fn prepare_liteloader(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    loader: &str,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    // The published build label is validated by the catalog at selection
+    // time; the installer re-resolves the one current build per game.
+    crate::instances::validate_loader_version(loader)?;
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some(ClientLoader::LiteLoader),
+    )
+}
 /// Pinned Forge-family launch, using only a dedicated installer cache.
 pub fn prepare_upstream(
     root: &Path,
@@ -316,6 +343,7 @@ enum ClientLoader<'a> {
     LegacyFabric(&'a str),
     Babric(&'a str),
     Ornithe(&'a str),
+    LiteLoader,
 }
 /// Pre-1.6 versions read resources from a real directory tree. Assemble it
 /// from the verified asset objects named by the pre-1.6 index (hard links,
@@ -466,6 +494,18 @@ fn prepare_identity(
                 Ok(crate::fabric_install::InstalledFabric {
                     profile: o.profile,
                     libraries: o.libraries,
+                })
+            }
+            ClientLoader::LiteLoader => {
+                // LiteLoader publishes one current build per Minecraft
+                // version; the installer re-resolves it from the manifest.
+                let l = crate::liteloader_install::install(
+                    &root.join("liteloader-libraries"),
+                    version,
+                )?;
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: l.profile,
+                    libraries: l.libraries,
                 })
             }
             ClientLoader::Forge(loader_version) | ClientLoader::NeoForge(loader_version) => {

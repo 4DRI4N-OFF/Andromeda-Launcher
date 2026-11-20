@@ -4,7 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let a: Vec<_> = std::env::args().collect();
     if a.len() < 4 || a.len() > 7 {
         return Err(
-            "Usage: loader_offline_probe VANILLA_ROOT GAME_DIR fabric|quilt|forge|neoforge|legacyfabric|babric|ornithe|vanilla-legacy [MC LOADER_VERSION] [launch]"
+            "Usage: loader_offline_probe VANILLA_ROOT GAME_DIR fabric|quilt|forge|neoforge|legacyfabric|babric|ornithe|liteloader|vanilla-legacy [MC LOADER_VERSION] [launch]"
                 .into(),
         );
     }
@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "legacyfabric" => ("1.8.9", "0.20.1"),
         "babric" => ("b1.7.3", "0.20.1"),
         "ornithe" => ("b1.7.3", "0.1.2"),
+        "liteloader" => ("1.12.2", "1.12.2-SNAPSHOT"),
         "vanilla-legacy" => ("1.5.2", ""),
         _ => return Err("Unsupported test loader".into()),
     };
@@ -94,6 +95,15 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             None,
             &loader_version,
         )?,
+        "liteloader" => andromeda_core::launch::prepare_liteloader(
+            root,
+            &mc,
+            "LoaderTest",
+            2048,
+            game,
+            None,
+            &loader_version,
+        )?,
         "legacyfabric" => andromeda_core::launch::prepare_legacyfabric(
             root,
             &mc,
@@ -114,6 +124,21 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )?,
         _ => return Err("Unsupported test loader".into()),
     };
+    if a[3].as_str() == "liteloader" {
+        // Launchwrapper tweaker wiring: the plan must name Launch as its
+        // main class and pass the LiteLoader tweaker among the game args.
+        let main = plan
+            .args
+            .iter()
+            .position(|x| x == "net.minecraft.launchwrapper.Launch")
+            .ok_or("launchwrapper main class missing from plan")?;
+        if !plan.args[main..]
+            .windows(2)
+            .any(|w| w[0] == "--tweakClass" && w[1] == andromeda_core::liteloader::TWEAK_CLASS)
+        {
+            return Err("LiteLoader tweaker missing from plan".into());
+        }
+    }
     // The default Ornithe probe target (b1.7.3) is pre-1.6, so it shares the
     // positional-identity check; explicit newer Ornithe targets skip it.
     if matches!(a[3].as_str(), "vanilla-legacy" | "babric")
