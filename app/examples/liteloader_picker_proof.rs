@@ -142,6 +142,13 @@ fn main()->Result<(),slint::PlatformError>{
  }
  assert_eq!(ui.get_loader_index(),8,"loader stays LiteLoader after clicking disabled neighbors");
  println!("event proof: clicks on disabled loaders ignored; loader stays LiteLoader");
+ // Bring the selected 1.12.2 row into the version-list viewport so the
+ // capture identifies the picked version, not only loader/build. Scroll
+ // offset persists across the window resizes below.
+ let target_scroll=idx_1122 as f32*48.-96.; // SectionRow pitch is 48px; put 1.12.2 second in the viewport
+ let vp=LogicalPosition::new(900.,520.);
+ ui.window().dispatch_event(WindowEvent::PointerScrolled{position:vp,delta_x:0.,delta_y:-target_scroll});
+ pump();
  let p=render(&w,1600,900);bmp(&p,"profiles-proof/picker-liteloader-1600.bmp",1600,900);
  println!("capture: profiles-proof/picker-liteloader-1600.bmp");
  // Smaller window: the nine-button row must still work at 1024x768.
@@ -163,26 +170,41 @@ fn main()->Result<(),slint::PlatformError>{
  assert!(builds.row_data(0).unwrap_or_default().to_string().starts_with(lt_top.as_str()),"top build must be the live one at 1024x768");
  let p=render(&w,1024,768);bmp(&p,"profiles-proof/picker-liteloader-1024.bmp",1024,768);
  println!("capture: profiles-proof/picker-liteloader-1024.bmp (LiteLoader selected at 1024x768)");
- // 860x620: the previous minimum target, now with nine buttons.
+ // 860x620: the previous minimum target, now with nine buttons. The loader
+ // row sits below the fold here, so scroll the settings panel first (real
+ // scroll events over the ScrollView), then click inside the window.
  ui.window().set_size(slint::PhysicalSize::new(860,620));pump();
  ui.set_loader_index(0);ui.invoke_loader_picked(0);
+ // At 860 the window bottom clips the list's third row: nudge the list one
+ // row further so the picked 1.12.2 sits fully inside the viewport.
+ let vp2=LogicalPosition::new(500.,520.);
+ ui.window().dispatch_event(WindowEvent::PointerScrolled{position:vp2,delta_x:0.,delta_y:-48.});
+ pump();
+ // At 860 the version list and the loader row do not fit together: capture
+ // the picked 1.12.2 row first (panel at top), then scroll for the row.
+ let pv=render(&w,860,620);bmp(&pv,"profiles-proof/picker-liteloader-860-versions.bmp",860,620);
+ println!("capture: profiles-proof/picker-liteloader-860-versions.bmp (1.12.2 selected in the list at 860x620)");
+ let sp=LogicalPosition::new(600.,400.);
+ for _ in 0..10{
+  ui.window().dispatch_event(WindowEvent::PointerScrolled{position:sp,delta_x:0.,delta_y:-60.});
+ }
+ pump();
  let mut tiny=false;
- 'outer860: for y in [719.,700.,740.,680.,760.,640.,790.,600.,560.,520.]{
-  let mut x=840.;
-  while x>560.{
+ 'outer860: for y in [272.,260.,285.,250.,300.,240.,310.,230.,320.,220.,330.,210.,340.,200.,350.,190.]{
+  let mut x=790.;
+  while x>380.{
    click(&ui,x,y);
-   if ui.get_loader_index()==8{println!("event proof: 860px click at x={x:.0}, y={y:.0} -> loader = LiteLoader");tiny=true;break 'outer860;}
+   if ui.get_loader_index()==8{println!("event proof: 860px click after scroll at x={x:.0}, y={y:.0} -> loader = LiteLoader");tiny=true;break 'outer860;}
    if ui.get_loader_index()!=0{panic!("an unexpected loader accepted a 860px click at x={x} y={y}");}
    x-=20.;
   }
  }
- if tiny{
-  let builds=ui.get_loader_version_choices();
-  assert_eq!(builds.row_count(),1,"LiteLoader build list must load at 860x620");
- }else{
-  println!("note: LiteLoader button not clickable at 860x620; recorded as QA layout pressure");
- }
+ assert!(tiny,"LiteLoader button must be reachable by scroll + real click at 860x620");
+ let builds=ui.get_loader_version_choices();
+ assert_eq!(builds.row_count(),1,"LiteLoader build list must load at 860x620");
+ assert!(builds.row_data(0).unwrap_or_default().to_string().starts_with(lt_top.as_str()),"top build must be the live one at 860x620");
  let p=render(&w,860,620);bmp(&p,"profiles-proof/picker-liteloader-860.bmp",860,620);
  println!("capture: profiles-proof/picker-liteloader-860.bmp (860x620, nine-button row)");
  println!("LiteLoader picker proof complete: live data, real events, exclusive selection, 3 captures.");Ok(())
 }
+
