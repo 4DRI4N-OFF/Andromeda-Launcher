@@ -248,6 +248,55 @@ fn json_loader_list(
 
 /// Map a NeoForge loader version (20.2.x and later) to its Minecraft version.
 /// Rule published by the NeoForge project: the loader version mirrors the game
+/// A Minecraft version plus optional loader build whose combination was
+/// checked against the catalog. The only constructor is [verify_selection],
+/// so callers that receive one can trust the combination exists upstream.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VerifiedSelection {
+    mc: String,
+    loader: Option<LoaderVersion>,
+}
+impl VerifiedSelection {
+    pub fn mc(&self) -> &str {
+        &self.mc
+    }
+    pub fn loader(&self) -> Option<&LoaderVersion> {
+        self.loader.as_ref()
+    }
+}
+
+/// Verify a user-facing selection against the catalog: the Minecraft version
+/// must be in the official manifest and, when a loader is chosen, the loader
+/// build must be published for exactly that version. One loader at most; a
+/// selection never carries two. Uses the cache when offline (`stale` data is
+/// still a real published catalog; a never-cached catalog is an error).
+pub fn verify_selection(
+    dl: &crate::vanilla::Downloader,
+    cache: &Path,
+    mc: &str,
+    loader: Option<(LoaderKind, &str)>,
+) -> Result<VerifiedSelection> {
+    if !mc_versions(dl, cache, McFilter::all())?
+        .items
+        .iter()
+        .any(|v| v.id == mc)
+    {
+        return Err("Minecraft version is not in the official manifest".into());
+    }
+    let loader = match loader {
+        None => None,
+        Some((kind, version)) => {
+            let page = loader_versions(dl, cache, kind, mc)?;
+            let found = page.items.into_iter().find(|v| v.version == version);
+            Some(found.ok_or("Loader build is not published for this Minecraft version")?)
+        }
+    };
+    Ok(VerifiedSelection {
+        mc: mc.to_owned(),
+        loader,
+    })
+}
+
 /// Map a NeoForge loader version to its Minecraft version, e.g. 21.11.48 ->
 /// 1.21.11 or 20.4.x -> 1.20.4.
 /// The separate 1.20.1 line (47.1.x, artifact net.neoforged:forge) is not
@@ -468,6 +517,55 @@ mod tests {
         let v = parse_maven_metadata(xml);
         assert_eq!(v, ["21.11.46", "21.11.47-beta", "21.11.48"]);
         assert!(parse_maven_metadata("<metadata/>").is_empty());
+    }
+
+    fn fixture_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "andromeda-catalog-test-{}-{tag}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn verify_selection_accepts_published_combinations() {
+        let dir = fixture_dir("verify-ok");
+        std::fs::write(
+            dir.join("mc-manifest.json"),
+            r#"{"versions":[{"id":"1.21.11","type":"release","url":"https://piston-meta.mojang.com/x.json","releaseTime":"2025-01-01T00:00:00Z"},{"id":"b1.7.3","type":"old_beta","url":"https://piston-meta.mojang.com/y.json","releaseTime":"2011-01-01T00:00:00Z"}]}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("fabric-1.21.11.json"),
+            r#"[{"loader":{"version":"0.20.1"}}]"#,
+        )
+        .unwrap();
+        let dl = crate::vanilla::Downloader::new().unwrap();
+        let sel =
+            verify_selection(&dl, &dir, "1.21.11", Some((LoaderKind::Fabric, "0.20.1"))).unwrap();
+        assert_eq!(sel.mc(), "1.21.11");
+        assert_eq!(sel.loader().unwrap().version, "0.20.1");
+        let plain = verify_selection(&dl, &dir, "b1.7.3", None).unwrap();
+        assert!(plain.loader().is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn verify_selection_rejects_impossible_combinations() {
+        let dir = fixture_dir("verify-bad");
+        std::fs::write(
+            dir.join("mc-manifest.json"),
+            r#"{"versions":[{"id":"b1.7.3","type":"old_beta","url":"https://piston-meta.mojang.com/y.json","releaseTime":"2011-01-01T00:00:00Z"}]}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.join("fabric-b1.7.3.json"), r#"[]"#).unwrap();
+        let dl = crate::vanilla::Downloader::new().unwrap();
+        assert!(verify_selection(&dl, &dir, "1.5.2", None).is_err());
+        assert!(
+            verify_selection(&dl, &dir, "b1.7.3", Some((LoaderKind::Fabric, "0.20.1"))).is_err()
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Live integration check against the real metadata services. Ignored by
