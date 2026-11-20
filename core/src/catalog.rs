@@ -17,6 +17,7 @@ const FABRIC_META: &str = "https://meta.fabricmc.net/v2/versions/loader";
 const QUILT_META: &str = "https://meta.quiltmc.org/v3/versions/loader";
 const LEGACYFABRIC_META: &str = "https://meta.legacyfabric.net/v2/versions/loader";
 const BABRIC_META: &str = "https://meta.babric.glass-launcher.net/v2/versions/loader";
+const ORNITHE_META: &str = "https://meta.ornithemc.net/v2/versions/loader";
 const FORGE_PROMOTIONS: &str =
     "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 const FORGE_MAVEN_META: &str =
@@ -96,9 +97,12 @@ pub enum LoaderKind {
     /// Standard fabric-loader builds for Minecraft b1.7.3 with Babric
     /// intermediary-upstream (meta.babric.glass-launcher.net).
     Babric,
+    /// Ornithe loader builds for Minecraft b1.7.3 through 1.13.2 with
+    /// calamus intermediary (meta.ornithemc.net).
+    Ornithe,
 }
 impl LoaderKind {
-    pub fn all() -> [Self; 6] {
+    pub fn all() -> [Self; 7] {
         [
             Self::Fabric,
             Self::Quilt,
@@ -106,6 +110,7 @@ impl LoaderKind {
             Self::NeoForge,
             Self::LegacyFabric,
             Self::Babric,
+            Self::Ornithe,
         ]
     }
 }
@@ -228,6 +233,7 @@ fn json_loader_list(
         LoaderKind::Quilt => (QUILT_META, format!("quilt-{mc}")),
         LoaderKind::LegacyFabric => (LEGACYFABRIC_META, format!("legacyfabric-{mc}")),
         LoaderKind::Babric => (BABRIC_META, format!("babric-{mc}")),
+        LoaderKind::Ornithe => (ORNITHE_META, format!("ornithe-{mc}")),
         _ => unreachable!(),
     };
     let url = format!("{base}/{mc}");
@@ -460,7 +466,11 @@ pub fn loader_versions(
         return Err("Invalid Minecraft version".into());
     }
     match kind {
-        LoaderKind::Fabric | LoaderKind::Quilt | LoaderKind::LegacyFabric | LoaderKind::Babric => {
+        LoaderKind::Fabric
+        | LoaderKind::Quilt
+        | LoaderKind::LegacyFabric
+        | LoaderKind::Babric
+        | LoaderKind::Ornithe => {
             json_loader_list(dl, cache, kind, mc)
         }
         LoaderKind::Forge => {

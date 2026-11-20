@@ -17,6 +17,7 @@ pub enum Loader {
     NeoForge { version: String },
     LegacyFabric { version: String },
     Babric { version: String },
+    Ornithe { version: String },
 }
 /// Loader versions are short Maven-style version strings. Compatibility with
 /// a specific Minecraft version is checked against the live catalog before
@@ -42,6 +43,7 @@ impl Loader {
             | Self::NeoForge { version }
             | Self::LegacyFabric { version } => version,
             Self::Babric { version } => version,
+            Self::Ornithe { version } => version,
         };
         validate_loader_version(version)
     }
@@ -232,6 +234,7 @@ pub fn create_selected(
             crate::catalog::LoaderKind::NeoForge => Loader::NeoForge { version },
             crate::catalog::LoaderKind::LegacyFabric => Loader::LegacyFabric { version },
             crate::catalog::LoaderKind::Babric => Loader::Babric { version },
+            crate::catalog::LoaderKind::Ornithe => Loader::Ornithe { version },
         }
     });
     create_for_version(root, name, local_name, memory_mb, selection.mc(), loader)

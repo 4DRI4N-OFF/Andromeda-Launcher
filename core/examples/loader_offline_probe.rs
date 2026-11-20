@@ -4,7 +4,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let a: Vec<_> = std::env::args().collect();
     if a.len() < 4 || a.len() > 7 {
         return Err(
-            "Usage: loader_offline_probe VANILLA_ROOT GAME_DIR fabric|quilt|forge|neoforge|legacyfabric|babric|vanilla-legacy [MC LOADER_VERSION] [launch]"
+            "Usage: loader_offline_probe VANILLA_ROOT GAME_DIR fabric|quilt|forge|neoforge|legacyfabric|babric|ornithe|vanilla-legacy [MC LOADER_VERSION] [launch]"
                 .into(),
         );
     }
@@ -19,6 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "neoforge" => ("1.21.11", "21.11.48"),
         "legacyfabric" => ("1.8.9", "0.20.1"),
         "babric" => ("b1.7.3", "0.20.1"),
+        "ornithe" => ("b1.7.3", "0.1.2"),
         "vanilla-legacy" => ("1.5.2", ""),
         _ => return Err("Unsupported test loader".into()),
     };
@@ -75,6 +76,15 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "vanilla-legacy" => {
             andromeda_core::launch::prepare_in_game_dir(root, &mc, "LoaderTest", 2048, game)?
         }
+        "ornithe" => andromeda_core::launch::prepare_ornithe(
+            root,
+            &mc,
+            "LoaderTest",
+            2048,
+            game,
+            None,
+            &loader_version,
+        )?,
         "babric" => andromeda_core::launch::prepare_babric(
             root,
             &mc,
@@ -104,7 +114,11 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )?,
         _ => return Err("Unsupported test loader".into()),
     };
-    if matches!(a[3].as_str(), "vanilla-legacy" | "babric") {
+    // The default Ornithe probe target (b1.7.3) is pre-1.6, so it shares the
+    // positional-identity check; explicit newer Ornithe targets skip it.
+    if matches!(a[3].as_str(), "vanilla-legacy" | "babric")
+        || (a[3].as_str() == "ornithe" && mc.starts_with("b1."))
+    {
         // Pre-1.6 identity is positional: the two game arguments right
         // after the main class are player name then session token. A loader
         // profile swaps the main class for its own entrypoint (KnotClient).
@@ -165,6 +179,27 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             return Err("Legacy natives not extracted".into());
         }
         println!("Legacy plan verified: jre-legacy runtime, classpath, arguments, natives");
+    }
+    if a[3].as_str() == "ornithe" {
+        if !plan.java.to_string_lossy().contains("jre-legacy") {
+            return Err("Ornithe launch must use the Mojang legacy Java runtime".into());
+        }
+        let cp = plan
+            .args
+            .windows(2)
+            .find(|v| v[0] == "-cp")
+            .map(|v| v[1].clone())
+            .unwrap_or_default();
+        for needle in [
+            "ornithe-loader-0.1.2",
+            "calamus-b1.7.3-client",
+            "b1.7.3.jar",
+        ] {
+            if !cp.contains(needle) {
+                return Err(format!("Ornithe classpath missing {needle}").into());
+            }
+        }
+        println!("Ornithe plan verified: jre-legacy runtime, classpath, arguments");
     }
     if a[3].as_str() == "babric" {
         if !plan.java.to_string_lossy().contains("jre-legacy") {

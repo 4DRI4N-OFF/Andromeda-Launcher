@@ -264,6 +264,30 @@ pub fn prepare_babric(
         Some(ClientLoader::Babric(loader)),
     )
 }
+/// Ornithe launch: ornithe-loader builds with calamus intermediary.
+pub fn prepare_ornithe(
+    root: &Path,
+    version: &str,
+    name: &str,
+    memory_mb: u32,
+    game: &Path,
+    session: Option<&crate::auth::Session>,
+    loader: &str,
+) -> Result<LaunchPlan> {
+    if session.is_some_and(|s| s.is_expired()) {
+        return Err("Microsoft session expired. Sign in again.".into());
+    }
+    let name = session.map(|s| s.profile.name.as_str()).unwrap_or(name);
+    prepare_identity(
+        root,
+        version,
+        name,
+        memory_mb,
+        game,
+        session,
+        Some(ClientLoader::Ornithe(loader)),
+    )
+}
 /// Pinned Forge-family launch, using only a dedicated installer cache.
 pub fn prepare_upstream(
     root: &Path,
@@ -291,6 +315,7 @@ enum ClientLoader<'a> {
     NeoForge(&'a str),
     LegacyFabric(&'a str),
     Babric(&'a str),
+    Ornithe(&'a str),
 }
 /// Pre-1.6 versions read resources from a real directory tree. Assemble it
 /// from the verified asset objects named by the pre-1.6 index (hard links,
@@ -430,6 +455,17 @@ fn prepare_identity(
                 Ok(crate::fabric_install::InstalledFabric {
                     profile: b.profile,
                     libraries: b.libraries,
+                })
+            }
+            ClientLoader::Ornithe(loader) => {
+                let o = crate::ornithe_install::install(
+                    &root.join("ornithe-libraries"),
+                    version,
+                    loader,
+                )?;
+                Ok(crate::fabric_install::InstalledFabric {
+                    profile: o.profile,
+                    libraries: o.libraries,
                 })
             }
             ClientLoader::Forge(loader_version) | ClientLoader::NeoForge(loader_version) => {
