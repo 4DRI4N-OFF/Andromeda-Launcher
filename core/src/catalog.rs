@@ -21,6 +21,11 @@ const FORGE_MAVEN_META: &str =
     "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml";
 const NEOFORGE_MAVEN_META: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
+/// NeoForge for Minecraft 1.20.1 lives in a separate artifact whose versions
+/// are MC-combined ("1.20.1-47.1.106"). Verified 2026-11-20: the installer,
+/// its .sha256 sidecar and a bootstraplauncher profile are all published.
+const NEOFORGE_1_20_1_META: &str =
+    "https://maven.neoforged.net/releases/net/neoforged/forge/maven-metadata.xml";
 const CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -418,11 +423,26 @@ pub fn loader_versions(
             }
             Ok(CatalogPage { items, stale })
         }
-        // The 1.20.1-era NeoForge builds (47.1.x, artifact net.neoforged:forge)
-        // are not offered: their metadata still lists 47.1.82 but every file
-        // in that directory returns 404 upstream (verified 2026-11-20), so no
-        // installable build exists. Forge covers 1.20.1 instead.
         LoaderKind::NeoForge => {
+            if mc == "1.20.1" {
+                let (body, stale) =
+                    cached_get(dl, cache, "neoforge-1.20.1-meta", NEOFORGE_1_20_1_META)?;
+                // Versions are MC-combined upstream; store them bare so a
+                // selection carries the loader build only ("47.1.106").
+                let mut items: Vec<_> = parse_maven_metadata(&body)
+                    .into_iter()
+                    .filter_map(|v| v.strip_prefix("1.20.1-").map(str::to_owned))
+                    .filter(|v| !v.is_empty())
+                    .map(|v| LoaderVersion {
+                        kind,
+                        version: v,
+                        stable: None,
+                    })
+                    .collect();
+                items.sort_by(|a, b| version_cmp(&b.version, &a.version));
+                return Ok(CatalogPage { items, stale });
+            }
+
             let (body, stale) = cached_get(dl, cache, "neoforge-maven-meta", NEOFORGE_MAVEN_META)?;
             let mut items: Vec<_> = parse_maven_metadata(&body)
                 .into_iter()
@@ -607,6 +627,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    #[test]
+    fn neoforge_1_20_1_versions_are_uncombined() {
+        let dir = fixture_dir("nf1201");
+        std::fs::write(
+            dir.join("neoforge-1.20.1-meta.json"),
+            r#"<?xml version="1.0"?><metadata><versioning><versions><version>1.20.1-47.1.5</version><version>1.20.1-47.1.106</version></versions></versioning></metadata>"#,
+        )
+        .unwrap();
+        let dl = crate::vanilla::Downloader::new().unwrap();
+        let page = loader_versions(&dl, &dir, LoaderKind::NeoForge, "1.20.1").unwrap();
+        let versions: Vec<_> = page.items.iter().map(|v| v.version.as_str()).collect();
+        assert_eq!(versions, ["47.1.106", "47.1.5"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Live integration check against the real metadata services. Ignored by
     /// default so the suite stays hermetic; run explicitly before delivery:
     /// cargo test -p andromeda-core catalog_live -- --ignored
@@ -662,9 +697,12 @@ mod tests {
             "neoforge 21.11.48 for 1.21.11"
         );
         let nf_1201 = loader_versions(&dl, &dir, LoaderKind::NeoForge, "1.20.1").unwrap();
+        // 47.1.106 was additionally verified installable 2026-11-20: the
+        // installer jar downloads, its .sha256 sidecar matches, and its
+        // profile carries id 1.20.1-forge-47.1.106 / bootstraplauncher.
         assert!(
-            nf_1201.items.is_empty(),
-            "neoforge for 1.20.1 must not be offered: upstream files are gone"
+            nf_1201.items.iter().any(|v| v.version == "47.1.106"),
+            "neoforge 47.1.106 expected for 1.20.1"
         );
         let old = loader_versions(&dl, &dir, LoaderKind::Fabric, "b1.7.3").unwrap();
         assert!(old.items.is_empty(), "no Fabric for old_beta expected");
