@@ -403,7 +403,7 @@ export component MainWindow inherits Window {
     in-out property <int> version-filter: 0;
     in-out property <int> version-index: 0;
     in-out property <int> loader-index: 0;
-    in property <[bool]> loader-available: [true, false, false, false, false];
+    in property <[bool]> loader-available: [true, false, false, false, false, false];
     in property <[string]> loader-version-choices: [];
     in-out property <int> loader-version-index: 0;
     callback version-refresh(int);
@@ -730,7 +730,7 @@ export component MainWindow inherits Window {
                                     }
                                     Text { text: "LOADER (ONE PER PROFILE)"; font-family: ThemePalette.body-font; font-size: 10px; letter-spacing: 1px; color: ThemePalette.nav-accent; }
                                     HorizontalLayout { spacing: 6px;
-                                        for loader[i] in ["Vanilla", "Fabric", "Quilt", "Forge", "NeoForge"] : AppButton {
+                                        for loader[i] in ["Vanilla", "Fabric", "Quilt", "Forge", "NeoForge", "LegacyFabric"] : AppButton {
                                             horizontal-stretch: 1; label: loader; small: true; primary: root.loader-index == i; enabled: !root.busy && (i == 0 || root.loader-available[i]);
                                             clicked => { root.loader-index = i; root.loader-version-index = 0; root.loader-picked(i); }
                                         }

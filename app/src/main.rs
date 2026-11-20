@@ -56,6 +56,7 @@ fn refresh_instances(
                 Some(andromeda_core::instances::Loader::Quilt { .. }) => "Quilt",
                 Some(andromeda_core::instances::Loader::Forge { .. }) => "Forge",
                 Some(andromeda_core::instances::Loader::NeoForge { .. }) => "NeoForge",
+                Some(andromeda_core::instances::Loader::LegacyFabric { .. }) => "LegacyFabric",
                 None => "Vanilla",
             }
         )
@@ -77,6 +78,9 @@ fn refresh_instances(
             }
             Some(andromeda_core::instances::Loader::NeoForge { version }) => {
                 format!("NeoForge {version}")
+            }
+            Some(andromeda_core::instances::Loader::LegacyFabric { version }) => {
+                format!("LegacyFabric {version}")
             }
             None => "Vanilla".into(),
         };
@@ -302,7 +306,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                         // and the loader build is the newest published for that
                         // Minecraft version (stable when flagged). Everything is
                         // re-verified against the catalogs before writing.
-                        use andromeda_core::catalog::{loader_versions, verify_selection, LoaderKind};
+                        use andromeda_core::catalog::{verify_selection, LoaderKind};
                         let dl = andromeda_core::vanilla::Downloader::new()?;
                         let cache = root.join("catalog-cache");
                         let mc = versions
@@ -311,7 +315,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                             .get(pick_version as usize)
                             .cloned()
                             .ok_or("Pick a game version from the list")?;
-                        let kind = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge)]
+                        let kind = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric)]
                             .get(pick_loader as usize)
                             .copied()
                             .flatten();
@@ -458,7 +462,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                     .collect();
                 let mut ids = Vec::new();
                 let mut labels = Vec::new();
-                if let Some(k) = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge)]
+                if let Some(k) = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric)]
                     .get(kind_index as usize)
                     .copied()
                     .flatten()
@@ -513,7 +517,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         std::thread::spawn(move || {
             let result = (|| -> Result<(Vec<String>, Vec<slint::SharedString>), Box<dyn std::error::Error + Send + Sync>> {
                 use andromeda_core::catalog::{loader_versions, LoaderKind};
-                let kind = [LoaderKind::Fabric, LoaderKind::Quilt, LoaderKind::Forge, LoaderKind::NeoForge][index as usize - 1];
+                let kind = [LoaderKind::Fabric, LoaderKind::Quilt, LoaderKind::Forge, LoaderKind::NeoForge, LoaderKind::LegacyFabric][index as usize - 1];
                 let dl = andromeda_core::vanilla::Downloader::new()?;
                 let cache = root.join("catalog-cache");
                 let mut ids = Vec::new();
@@ -629,6 +633,18 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                         )?;
                         andromeda_core::launch::prepare_upstream(
                             &root, &mc, &name, memory, &game, session.as_ref(), &spec,
+                        )?
+                    }
+                    Some(andromeda_core::instances::Loader::LegacyFabric { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_legacyfabric(
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
                         )?
                     }
                     None => match session {
