@@ -287,11 +287,24 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         std::thread::spawn(move || {
             let result = (|| -> Result<Vec<andromeda_core::instances::Instance>, Box<dyn std::error::Error + Send + Sync>> {
                 match action.as_str() {
-                    "create" => { andromeda_core::instances::create(&root, &name, &local_name, 2048)?; }
-                    "createfabric" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Fabric { version: "0.20.1".into() }))?; }
-                    "createquilt" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Quilt { version: "0.30.2".into() }))?; }
-                    "createforge" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Forge { version: "61.2.5".into() }))?; }
-                    "createneoforge" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::NeoForge { version: "21.11.48".into() }))?; }
+                    "create" | "createfabric" | "createquilt" | "createforge" | "createneoforge" => {
+                        // Every creation is verified against the live loader
+                        // catalogs before an instance is written: the version
+                        // pickers feed these values once the UI exposes them,
+                        // until then the pinned defaults are the request.
+                        use andromeda_core::catalog::{verify_selection, LoaderKind};
+                        let dl = andromeda_core::vanilla::Downloader::new()?;
+                        let cache = root.join("catalog-cache");
+                        let loader = match action.as_str() {
+                            "create" => None,
+                            "createfabric" => Some((LoaderKind::Fabric, "0.20.1")),
+                            "createquilt" => Some((LoaderKind::Quilt, "0.30.2")),
+                            "createforge" => Some((LoaderKind::Forge, "61.2.5")),
+                            _ => Some((LoaderKind::NeoForge, "21.11.48")),
+                        };
+                        let sel = verify_selection(&dl, &cache, "1.21.11", loader)?;
+                        andromeda_core::instances::create_selected(&root, &name, &local_name, 2048, &sel)?;
+                    }
                     "duplicate" => { let i = selected.ok_or("Select an instance, not the default profile")?; andromeda_core::instances::duplicate(&root, &i.id, &name)?; }
                     "trash" => { let i = selected.ok_or("The default profile cannot be trashed here")?; andromeda_core::instances::trash(&root, &i.id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = Some(i.id); }
                     "restore" => { let id = trash.lock().map_err(|_| "Instance lock unavailable")?.clone().ok_or("No instance to restore in this session")?; andromeda_core::instances::restore(&root, &id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = None; }
