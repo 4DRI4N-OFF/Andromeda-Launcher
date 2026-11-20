@@ -427,6 +427,12 @@ fn prepare_identity(
         ("natives_directory", natives.to_string_lossy().into_owned()),
         ("launcher_name", "Andromeda".into()),
         ("launcher_version", env!("CARGO_PKG_VERSION").into()),
+        // Present since the 1.21.2 argument format; 1.21.11 does not use it
+        // but earlier 1.21.x versions do.
+        (
+            "classpath_separator",
+            if cfg!(windows) { ";" } else { ":" }.to_owned(),
+        ),
         (
             "classpath",
             classpath

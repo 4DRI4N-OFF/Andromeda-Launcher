@@ -429,13 +429,23 @@ pub fn install_spec(root: &Path, java: &Path, vanilla: &Path, spec: &Spec) -> Re
         // Files the installer must have generated, in the upstream layout of
         // this artifact (neoforge modern, forge for the 1.20.1 line).
         let (a, c) = (spec.artifact(), spec.combined());
-        for required in [
-            format!("libraries/net/neoforged/minecraft-client-patched/{c}/minecraft-client-patched-{c}.jar"),
-            format!("libraries/net/neoforged/{a}/{c}/{a}-{c}-universal.jar"),
-        ] {
-            if !files.iter().any(|f| f["path"].as_str() == Some(&required)) {
-                return Err("Required generated NeoForge file absent from receipt".into());
-            }
+        let universal = format!("libraries/net/neoforged/{a}/{c}/{a}-{c}-universal.jar");
+        if !files.iter().any(|f| f["path"].as_str() == Some(&universal)) {
+            return Err("Required generated NeoForge file absent from receipt".into());
+        }
+        // The patched client moved with the 21.4 generation: older lines
+        // ship it as {artifact}-{version}-client.jar next to the universal,
+        // newer ones as the separate minecraft-client-patched artifact. Both
+        // layouts are published upstream; anything else is rejected.
+        let patched_current = format!(
+            "libraries/net/neoforged/minecraft-client-patched/{c}/minecraft-client-patched-{c}.jar"
+        );
+        let patched_legacy = format!("libraries/net/neoforged/{a}/{c}/{a}-{c}-client.jar");
+        if !files.iter().any(|f| {
+            f["path"].as_str() == Some(&patched_current)
+                || f["path"].as_str() == Some(&patched_legacy)
+        }) {
+            return Err("Required generated NeoForge client absent from receipt".into());
         }
     }
     let mut launch_libraries = Vec::new();
