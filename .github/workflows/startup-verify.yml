@@ -75,7 +75,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - uses: actions/upload-artifact@v4
+        # Preserve the built candidate even when a later diagnostic fails.
+        # The failed job stays failed; an artifact is not approval to publish.
+        if: always()
         with:
           name: andromeda-windows-x86_64
           path: target/release/andromeda.exe
+          if-no-files-found: error
           retention-days: 14
