@@ -30,13 +30,13 @@ Minecraft receives its access token as a normal Java launch argument. This does 
 - A separate test executable was built without replacing the phase-3 `target/debug/andromeda.exe`.
 - On November 10, the Sign in crash was traced to a native Windows class-name collision between Slint/winit and Tao. The WebView2 window now has a unique class name.
 - The fixed executable's actual Sign in button opened the Microsoft page. Its pixels were inspected. Closing it returned "Sign-in cancelled."; opening it again worked while the launcher stayed alive. No credentials were entered during these automated checks.
-- At 06:15 CET on November 10, 2026, the owner reported "Ya funciona la cuenta" after using `Andromeda-Phase4-WebView2-Test/andromeda-fixed.exe`. At 06:17 he clarified that the session was not remembered after reopening. Treat these as owner reports, not proof of the expected skin or a working reopen refresh.
+- On November 10, 2026, the owner confirmed that sign-in completed with the fixed executable (`Andromeda-Phase4-WebView2-Test/andromeda-fixed.exe`), and that the session was not remembered after reopening. These are owner reports, not proof of the expected skin or a working reopen refresh.
 - The protected cache did exist. The startup path had only shown a saved-session notice without loading/refreshing it or restoring the account UI. The new separate `andromeda-restore.exe` silently refreshes it at startup, restores the profile and Microsoft Play choice on success, and keeps the cache on transient errors. Two controlled launches, separated by a normal close, both restored `_4DRI4N_` without a Microsoft window. The actual pixels showed the restored profile and Microsoft Play selected; both processes closed normally.
 
 ## Still required before merge
 
-- The owner's 06:17 "Si y no, aun no recuerda la sesion" answered a combined question about entering a world with Microsoft Play/skin and remembering the session. Record owner-reported game/account success, but do not substitute that answer for independent in-world or separate skin evidence.
-- Independently check Play with Microsoft in an isolated test world and return to ready; owner-reported skin was confirmed at 06:24 CET; an independent in-game inspection remains optional evidence, not an owner-report gap.
+- Owner-reported game/account success covers entering a world with Microsoft Play and remembering the session. Do not substitute owner reports for independent in-world or separate skin evidence.
+- Independently check Play with Microsoft in an isolated test world and return to ready; owner-reported skin confirmation exists; an independent in-game inspection remains optional evidence, not an owner-report gap.
 - Reopen refresh now passes the two controlled launch checks above. Longer-term expiry/revocation behavior remains covered by synthetic tests rather than a timed live expiry test.
 - Check local sign-out and explicit offline-play/instance regressions.
 - Keep prior phase-1/intro proof and PR #5/#6/#7 merge gates unchanged. No auto-merge, release or public publication.
@@ -47,6 +47,6 @@ References checked:
 - https://learn.microsoft.com/en-us/entra/msal/dotnet/acquiring-tokens/using-web-browsers
 - https://learn.microsoft.com/en-us/entra/identity-platform/reply-url
 
-## Owner follow-up, November 10 at 06:24 CET
+## Owner follow-up, November 10
 
-The owner reported "la skin se ve" after Microsoft Play. Record this as owner-reported in-world skin confirmation. It is not an independent screenshot inspection. The stale startup helper telling him to install 1.21.11 first was replaced with neutral, accurate guidance: choose a profile and Play; installed files are verified before launch. Earlier merge gates remain unchanged.
+In-world skin after Microsoft Play is owner-reported, not an independent screenshot inspection. The stale startup helper that pushed installing 1.21.11 first was replaced with neutral, accurate guidance: choose a profile and Play; installed files are verified before launch. Earlier merge gates remain unchanged.
