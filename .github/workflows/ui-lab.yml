@@ -44,3 +44,23 @@ jobs:
         with:
           name: ui-lab-results
           path: ui-lab-results/
+      - name: Commit key results for review
+        shell: pwsh
+        run: |
+          git config user.name "instinct-bot"
+          git config user.email "instinct@users.noreply.github.com"
+          New-Item -ItemType Directory -Force -Path ui-lab-results-key | Out-Null
+          foreach ($app in @('slint','tauri')) {
+            $d = "ui-lab-results/$app"
+            Copy-Item "$d/metrics.json" "ui-lab-results-key/$app-metrics.json" -ErrorAction SilentlyContinue
+            Copy-Item "$d/app-metrics.json" "ui-lab-results-key/$app-app-metrics.json" -ErrorAction SilentlyContinue
+            $frames = Get-ChildItem "$d/frame_*.png" -ErrorAction SilentlyContinue | Sort-Object Name
+            if ($frames -and $frames.Count -gt 0) {
+              $idx = @(0, [int]($frames.Count*0.25), [int]($frames.Count*0.5), [int]($frames.Count*0.75), $frames.Count-1)
+              $n = 0
+              foreach ($i in $idx) { Copy-Item $frames[$i].FullName ("ui-lab-results-key/{0}_key{1}.png" -f $app, $n); $n++ }
+            }
+          }
+          git add ui-lab-results-key
+          git diff --cached --quiet || git commit -m "ui-lab: key frames + metrics"
+          git push || echo "push failed (permissions)"
