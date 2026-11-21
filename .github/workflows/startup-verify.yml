@@ -11,11 +11,6 @@
 name: Startup verify (consolidated)
 on:
   workflow_dispatch:
-  # TEMPORARY push trigger, only so this workflow can run before existing on
-  # the default branch. MUST be removed before any integration of this branch.
-  push:
-    branches:
-      - fix/startup-unverified-frame
 permissions:
   contents: read
 jobs:
