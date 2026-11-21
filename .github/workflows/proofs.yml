@@ -1,0 +1,32 @@
+name: UI proofs
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or commit containing the proof examples (they live outside main)'
+        required: true
+        default: feat/version-catalog
+
+permissions:
+  contents: read
+
+jobs:
+  proofs:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run offscreen UI proofs
+        run: cargo run -p andromeda-app --example mods_section_proof --locked
+      - name: Upload captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mods-proof-${{ github.run_id }}
+          path: mods-proof/
+          if-no-files-found: warn
