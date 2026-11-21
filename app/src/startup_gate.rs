@@ -19,6 +19,10 @@ pub enum Event {
     MainPrepared,
     IntroFinished,
     MainFirstFrame,
+    /// The renderer cannot report frames (no notifier support), so the
+    /// handoff proceeds with the first frame unverified. Never fired when
+    /// verification works: an unverifiable frame is not a confirmed frame.
+    MainFirstFrameUnverifiable,
     HandoffFinished,
     Fail,
 }
@@ -65,7 +69,10 @@ impl Gate {
             (Stage::Loading, Event::DataLoaded) => self.data_loaded = true,
             (Stage::Loading, Event::MainPrepared) => self.main_prepared = true,
             (Stage::Intro, Event::IntroFinished) => self.stage = Stage::AwaitingMainFrame,
-            (Stage::AwaitingMainFrame, Event::MainFirstFrame) => {
+            (
+                Stage::AwaitingMainFrame,
+                Event::MainFirstFrame | Event::MainFirstFrameUnverifiable,
+            ) => {
                 self.stage = if self.reduce_motion {
                     Stage::Ready
                 } else {
@@ -132,6 +139,7 @@ mod tests {
         for e in [
             Event::IntroFinished,
             Event::MainFirstFrame,
+            Event::MainFirstFrameUnverifiable,
             Event::HandoffFinished,
         ] {
             assert!(!g.accept(a, e));
@@ -159,6 +167,26 @@ mod tests {
         assert_eq!(g.stage(), Stage::Ready);
     }
     #[test]
+    fn unverifiable_frame_reaches_handoff_without_faking_confirmation() {
+        let mut g = prepared(false);
+        let a = g.attempt();
+        g.accept(a, Event::IntroFinished);
+        assert_eq!(g.stage(), Stage::AwaitingMainFrame);
+        g.accept(a, Event::HandoffFinished);
+        assert_eq!(g.stage(), Stage::AwaitingMainFrame);
+        g.accept(a, Event::MainFirstFrameUnverifiable);
+        assert_eq!(g.stage(), Stage::Handoff);
+        g.accept(a, Event::HandoffFinished);
+        assert_eq!(g.stage(), Stage::Ready);
+    }
+    #[test]
+    fn reduced_motion_accepts_unverifiable_frame() {
+        let mut g = prepared(true);
+        assert_eq!(g.stage(), Stage::AwaitingMainFrame);
+        g.accept(g.attempt(), Event::MainFirstFrameUnverifiable);
+        assert_eq!(g.stage(), Stage::Ready);
+    }
+    #[test]
     fn stale_completion_after_retry_is_ignored() {
         let mut g = Gate::new(false);
         let old = g.attempt();
@@ -181,6 +209,7 @@ mod tests {
             Event::MainPrepared,
             Event::IntroFinished,
             Event::MainFirstFrame,
+            Event::MainFirstFrameUnverifiable,
             Event::HandoffFinished,
         ] {
             assert!(!g.accept(a, e));
