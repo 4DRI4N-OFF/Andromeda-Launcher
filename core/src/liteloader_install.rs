@@ -437,10 +437,10 @@ mod cache_tests {
     use super::*;
 
     fn fixture() -> (PathBuf, String, String) {
-        let id = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
+        // Unique per test even on coarse-granularity clocks: parallel tests
+        // in the same process must never share (and delete) a fixture dir.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
             "andromeda-liteloader-cache-{}-{id}",
             std::process::id()
