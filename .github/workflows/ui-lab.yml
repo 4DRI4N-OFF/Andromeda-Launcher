@@ -1,0 +1,65 @@
+name: ui-lab
+on:
+  push:
+    branches: [ui-lab/ios26-comparison]
+    paths: ['ui-lab-payload.b64']
+
+permissions:
+  contents: read
+
+jobs:
+  slint:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode payload
+        shell: pwsh
+        run: |
+          $b64 = [IO.File]::ReadAllText("ui-lab-payload.b64") -replace '\s',''
+          [IO.File]::WriteAllBytes("ui-lab.tar.gz", [Convert]::FromBase64String($b64))
+          tar -xzf ui-lab.tar.gz
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.100.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ui-lab/slint-demo -> target
+      - name: Build Slint demo
+        run: cargo build --release --locked --manifest-path ui-lab/slint-demo/Cargo.toml
+      - name: Run and capture
+        shell: pwsh
+        run: ui-lab/capture.ps1 -Exe ui-lab\slint-demo\target\release\ui-lab-slint.exe -Name slint -ChildMem $false
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-lab-slint
+          path: ui-lab-results/slint/
+
+  tauri:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode payload
+        shell: pwsh
+        run: |
+          $b64 = [IO.File]::ReadAllText("ui-lab-payload.b64") -replace '\s',''
+          [IO.File]::WriteAllBytes("ui-lab.tar.gz", [Convert]::FromBase64String($b64))
+          tar -xzf ui-lab.tar.gz
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.100.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ui-lab/tauri-demo/src-tauri -> target
+      - name: Build Tauri demo
+        run: cargo build --release --locked --manifest-path ui-lab/tauri-demo/src-tauri/Cargo.toml
+      - name: Run and capture
+        shell: pwsh
+        run: ui-lab/capture.ps1 -Exe ui-lab\tauri-demo\src-tauri\target\release\ui-lab-tauri.exe -Name tauri -ChildMem $true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-lab-tauri
+          path: ui-lab-results/tauri/
