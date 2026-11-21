@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ui-lab/ios26-comparison]
-    paths: ['ui-lab-payload.b64']
+    paths: ['ui-lab-payload.b64', '.github/workflows/ui-lab.yml']
 
 permissions:
   contents: write
