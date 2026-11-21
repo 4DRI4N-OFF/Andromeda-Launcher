@@ -135,7 +135,9 @@ pub fn install(root: &Path, game: &str, loader: &str) -> Result<InstalledBabric>
     super::fabric::maven_path(&format!("babric:intermediary-upstream:{game}"))?;
     plain_dir(root)?;
     let c = client()?;
-    let u = format!("https://meta.babric.glass-launcher.net/v2/versions/loader/{game}/{loader}/profile/json");
+    let u = format!(
+        "https://meta.babric.glass-launcher.net/v2/versions/loader/{game}/{loader}/profile/json"
+    );
     let manifest = root.join(format!("profile-babric-{game}-{loader}.json"));
     let cached = manifest.exists();
     let mut profile: Value = if cached {
@@ -196,7 +198,11 @@ pub fn install(root: &Path, game: &str, loader: &str) -> Result<InstalledBabric>
             if entry["path"].as_str() != Some(rel_n.as_str()) {
                 return Err("Babric natives path does not match the coordinate".into());
             }
-            let nhash = sha1(entry["sha1"].as_str().ok_or("Babric natives lack a digest")?)?;
+            let nhash = sha1(
+                entry["sha1"]
+                    .as_str()
+                    .ok_or("Babric natives lack a digest")?,
+            )?;
             let nsize = entry["size"].as_u64().ok_or("Babric natives lack a size")?;
             let ndest = root.join(&expected);
             let mut parent = root.to_path_buf();
@@ -238,9 +244,8 @@ pub fn install(root: &Path, game: &str, loader: &str) -> Result<InstalledBabric>
             if artifact["path"].as_str() != Some(rel.as_str()) {
                 return Err("Babric artifact path does not match the coordinate".into());
             }
-            lib["sha1"] = Value::String(
-                artifact["sha1"].as_str().expect("checked above").to_owned(),
-            );
+            lib["sha1"] =
+                Value::String(artifact["sha1"].as_str().expect("checked above").to_owned());
             lib["size"] = Value::from(
                 artifact["size"]
                     .as_u64()
@@ -415,7 +420,11 @@ mod cache_tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, b"verified").unwrap();
             use sha1::{Digest, Sha1};
-            let host=if n.starts_with("babric:"){"https://maven.glass-launcher.net/babric/"}else{"https://maven.fabricmc.net/"};
+            let host = if n.starts_with("babric:") {
+                "https://maven.glass-launcher.net/babric/"
+            } else {
+                "https://maven.fabricmc.net/"
+            };
             libs.push(serde_json::json!({"name":n,"url":host,"sha1":format!("{:x}",Sha1::digest(b"verified")),"size":8}));
         }
         let profile = serde_json::json!({"id":"fabric-loader-0.20.1-b1.7.3","inheritsFrom":"b1.7.3","mainClass":"net.fabricmc.loader.impl.launch.knot.KnotClient","libraries":libs});
@@ -455,4 +464,3 @@ mod cache_tests {
         fs::remove_dir_all(root).unwrap();
     }
 }
-

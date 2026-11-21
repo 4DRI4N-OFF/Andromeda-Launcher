@@ -221,7 +221,14 @@ pub fn set_enabled(game: &Path, reg: &mut Registry, project_id: &str, enabled: b
                 .into());
             }
         }
-        (m.disk_name(), if enabled { m.filename.clone() } else { format!("{}{DISABLED_SUFFIX}", m.filename) })
+        (
+            m.disk_name(),
+            if enabled {
+                m.filename.clone()
+            } else {
+                format!("{}{DISABLED_SUFFIX}", m.filename)
+            },
+        )
     };
     let dir = mods_dir(game)?;
     let (from, to) = (dir.join(&from), dir.join(&to));
@@ -248,10 +255,9 @@ pub fn remove(game: &Path, reg: &mut Registry, project_id: &str) -> Result<ModEn
         .position(|m| m.project_id == project_id)
         .ok_or("Mod is not managed in this instance")?;
     if let Some(owner) = required_by_enabled(reg, project_id) {
-        return Err(format!(
-            "Cannot remove: project {owner} is enabled and requires this mod"
-        )
-        .into());
+        return Err(
+            format!("Cannot remove: project {owner} is enabled and requires this mod").into(),
+        );
     }
     let entry = reg.mods.remove(idx);
     let path = mods_dir(game)?.join(entry.disk_name());
@@ -311,10 +317,8 @@ mod tests {
     use super::*;
 
     fn test_game(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "andromeda-mods-test-{}-{tag}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("andromeda-mods-test-{}-{tag}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("mods")).unwrap();
         dir
@@ -409,7 +413,9 @@ mod tests {
     fn load_rejects_traversal_and_bad_digest() {
         let game = test_game("reject");
         let mut bad = entry("AAAAaaaa", "../evil.jar", None);
-        let reg = Registry { mods: vec![bad.clone()] };
+        let reg = Registry {
+            mods: vec![bad.clone()],
+        };
         assert!(save(&game, &reg).is_err());
         bad.filename = "ok.jar".into();
         bad.sha512 = "zz".into();

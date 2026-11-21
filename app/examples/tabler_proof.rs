@@ -102,8 +102,15 @@ fn main() -> Result<(), slint::PlatformError> {
             pointer(&window, 739.2 + tab as f32 * 110.4, 82.8, true);
             pointer(&window, 739.2 + tab as f32 * 110.4, 82.8, false);
             assert_eq!(ui.get_active_tab(), tab);
-            if tab == 3 { ui.set_settings_section(2); }
-            capture(&window, &format!("tabler-{}-{tab}-1080.bmp", pack.id), 1920, 1080);
+            if tab == 3 {
+                ui.set_settings_section(2);
+            }
+            capture(
+                &window,
+                &format!("tabler-{}-{tab}-1080.bmp", pack.id),
+                1920,
+                1080,
+            );
         }
     }
     ui.set_active_tab(0);
