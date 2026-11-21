@@ -11,6 +11,8 @@
 name: Startup verify (consolidated)
 on:
   workflow_dispatch:
+  push:
+    branches: [review/steam-library-validation]
 permissions:
   contents: read
 jobs:
@@ -20,6 +22,43 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply reviewed library overlay with immutable provenance
+        shell: pwsh
+        run: |
+          $expectedBase = '0170d24e8c596ecc50fe0bdf96b2fb1cb650c35a'
+          # Validation commits contain only an archive and this workflow.
+          git merge-base --is-ancestor $expectedBase HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Expected source base is not an ancestor' }
+          $archive = @(Get-ChildItem -File '*Andromeda-Steam-Library-0170d24-review.tar-77085ddf.gz')
+          if ($archive.Count -ne 1) { throw 'Expected exactly one reviewed archive' }
+          $digest = (Get-FileHash $archive[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($digest -ne '5aa67a04ac6a073051b40719681fb9c281da963f1519c382f7c4517028c76ff9') { throw 'Reviewed archive hash mismatch' }
+          $out = Join-Path $env:RUNNER_TEMP 'reviewed-library'
+          New-Item -ItemType Directory -Force $out | Out-Null
+          tar -xzf $archive[0].FullName -C $out
+          if ($LASTEXITCODE -ne 0) { throw 'Archive extraction failed' }
+          $review = Join-Path $out 'andromeda-steam-native-review'
+          $manifest = Get-Content (Join-Path $review 'manifest.json') -Raw | ConvertFrom-Json
+          if ($manifest.base -ne $expectedBase) { throw 'Manifest base mismatch' }
+          git diff --exit-code $expectedBase -- app core Cargo.lock Cargo.toml scripts
+          if ($LASTEXITCODE -ne 0) { throw 'Validation branch application differs from expected base' }
+          $changes = @($manifest.modified) + @($manifest.added)
+          if ($changes.Count -ne 17 -or @($manifest.deleted).Count -ne 0) { throw 'Unexpected overlay scope' }
+          foreach ($line in Get-Content (Join-Path $review 'SHA256SUMS')) {
+            if ($line -notmatch '^([a-f0-9]{64})  (.+)$') { throw 'Invalid checksum line' }
+            $want = $Matches[1]; $path = $Matches[2]
+            if ($path -notmatch '^overlay/app/' -or $path.Contains('..')) { throw 'Unexpected checksum path' }
+            $actual = (Get-FileHash (Join-Path $review $path) -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $want) { throw 'Overlay file checksum mismatch' }
+          }
+          Copy-Item (Join-Path $review 'overlay/*') . -Recurse -Force
+          New-Item -ItemType Directory -Force 'verify-out/logs' | Out-Null
+          Copy-Item (Join-Path $review 'manifest.json') 'verify-out/logs/review-manifest.json'
+          Copy-Item (Join-Path $review 'SHA256SUMS') 'verify-out/logs/review-SHA256SUMS.txt'
+          "base=$expectedBase; archive_sha256=$digest; validation_commit=$env:GITHUB_SHA" | Out-File 'verify-out/logs/source-provenance.txt'
+          git status --short | Out-File 'verify-out/logs/source-status.txt'
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
