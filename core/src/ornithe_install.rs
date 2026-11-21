@@ -119,7 +119,9 @@ pub fn install(root: &Path, game: &str, loader: &str) -> Result<InstalledOrnithe
             .ok_or("Non-UTF8 Maven path")?
             .replace('\\', "/");
         let host = match lib["url"].as_str() {
-            Some("https://maven.ornithemc.net/releases/") => "https://maven.ornithemc.net/releases/",
+            Some("https://maven.ornithemc.net/releases/") => {
+                "https://maven.ornithemc.net/releases/"
+            }
             Some("https://maven.fabricmc.net/") => "https://maven.fabricmc.net/",
             _ => return Err("Unapproved Ornithe library host".into()),
         };
@@ -262,8 +264,14 @@ mod cache_tests {
         fs::create_dir_all(&root).unwrap();
         let mut libs = Vec::new();
         for n in [
-            ("net.ornithemc:ornithe-loader:0.1.2", "https://maven.ornithemc.net/releases/"),
-            ("net.ornithemc:calamus:b1.7.3-client", "https://maven.ornithemc.net/releases/"),
+            (
+                "net.ornithemc:ornithe-loader:0.1.2",
+                "https://maven.ornithemc.net/releases/",
+            ),
+            (
+                "net.ornithemc:calamus:b1.7.3-client",
+                "https://maven.ornithemc.net/releases/",
+            ),
         ] {
             let (n, host) = n;
             let path = root.join(crate::fabric::maven_path(n).unwrap());
@@ -314,4 +322,3 @@ mod cache_tests {
         fs::remove_dir_all(root).unwrap();
     }
 }
-

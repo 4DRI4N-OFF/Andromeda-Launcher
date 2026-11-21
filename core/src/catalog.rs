@@ -475,9 +475,7 @@ pub fn loader_versions(
         | LoaderKind::Quilt
         | LoaderKind::LegacyFabric
         | LoaderKind::Babric
-        | LoaderKind::Ornithe => {
-            json_loader_list(dl, cache, kind, mc)
-        }
+        | LoaderKind::Ornithe => json_loader_list(dl, cache, kind, mc),
         LoaderKind::LiteLoader => {
             let (body, stale) = match cached_get(dl, cache, "liteloader-versions", LITELOADER_META)
             {
@@ -885,7 +883,10 @@ mod tests {
         let page = loader_versions(&dl, &dir, LoaderKind::LegacyFabric, "1.8.9").unwrap();
         let versions: Vec<_> = page.items.iter().map(|v| v.version.as_str()).collect();
         assert_eq!(versions, ["0.20.1", "0.20.0"]);
-        assert!(page.items.iter().all(|v| v.kind == LoaderKind::LegacyFabric));
+        assert!(page
+            .items
+            .iter()
+            .all(|v| v.kind == LoaderKind::LegacyFabric));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -964,7 +965,10 @@ mod tests {
             "legacyfabric 0.20.1 for 1.8.9"
         );
         let lf_new = loader_versions(&dl, &dir, LoaderKind::LegacyFabric, "1.21.11").unwrap();
-        assert!(lf_new.items.is_empty(), "no LegacyFabric for 1.21.11 expected");
+        assert!(
+            lf_new.items.is_empty(),
+            "no LegacyFabric for 1.21.11 expected"
+        );
         let avail_old = available_loaders(&dl, &dir, "1.8.9").unwrap();
         assert!(
             avail_old.contains(&LoaderKind::LegacyFabric),

@@ -477,8 +477,11 @@ fn prepare_identity(
                 })
             }
             ClientLoader::Babric(loader) => {
-                let b =
-                    crate::babric_install::install(&root.join("babric-libraries"), version, loader)?;
+                let b = crate::babric_install::install(
+                    &root.join("babric-libraries"),
+                    version,
+                    loader,
+                )?;
                 loader_natives = b.natives.clone();
                 Ok(crate::fabric_install::InstalledFabric {
                     profile: b.profile,
@@ -649,10 +652,7 @@ fn prepare_identity(
             "auth_session",
             session.map(|s| s.access_token()).unwrap_or("0").into(),
         ),
-        (
-            "game_assets",
-            game_assets.to_string_lossy().into_owned(),
-        ),
+        ("game_assets", game_assets.to_string_lossy().into_owned()),
         (
             "classpath",
             classpath

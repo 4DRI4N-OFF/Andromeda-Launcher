@@ -87,7 +87,9 @@ pub fn select(manifest: &Value, game: &str) -> Result<Selected> {
     }
     let entry = versions.get(game).ok_or("LiteLoader has no such game")?;
     let repo = &entry["repo"];
-    let repo_type = repo["type"].as_str().ok_or("Missing LiteLoader repo type")?;
+    let repo_type = repo["type"]
+        .as_str()
+        .ok_or("Missing LiteLoader repo type")?;
     let stream = repo["stream"].as_str().ok_or("Missing LiteLoader stream")?;
     let url = repo["url"].as_str().ok_or("Missing LiteLoader repo url")?;
     let (kind, container_key) = match (repo_type, stream, url) {
@@ -189,9 +191,12 @@ pub fn select(manifest: &Value, game: &str) -> Result<Selected> {
     // Dependency set: the build's own libraries plus container-level
     // additions (mixin is declared next to the build map, not inside it).
     let mut libraries: Vec<String> = Vec::new();
-    for list in [container["libraries"].as_array(), build["libraries"].as_array()]
-        .into_iter()
-        .flatten()
+    for list in [
+        container["libraries"].as_array(),
+        build["libraries"].as_array(),
+    ]
+    .into_iter()
+    .flatten()
     {
         for lib in list {
             let name = lib["name"].as_str().ok_or("Missing LiteLoader library")?;
@@ -257,7 +262,9 @@ mod tests {
         let s = select(&m2_manifest(), "1.12.2").unwrap();
         assert_eq!(s.repo, Repo::M2Snapshot);
         assert_eq!(s.version, "1.12.2-SNAPSHOT");
-        assert!(s.libraries.contains(&"org.spongepowered:mixin:0.7.4-SNAPSHOT".to_owned()));
+        assert!(s
+            .libraries
+            .contains(&"org.spongepowered:mixin:0.7.4-SNAPSHOT".to_owned()));
         assert!(s.libraries.contains(&"org.ow2.asm:asm-all:5.2".to_owned()));
     }
     #[test]

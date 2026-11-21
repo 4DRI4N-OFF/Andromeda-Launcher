@@ -33,12 +33,13 @@ fn sha512_of(bytes: &[u8]) -> String {
 
 /// Fetch a mod archive, verified against the API-published sha512+size.
 pub fn download_verified(c: &reqwest::blocking::Client, file: &ModFile) -> Result<Vec<u8>> {
-    let mut resp = c.get(&file.url).send()?;
+    let resp = c.get(&file.url).send()?;
     if !resp.status().is_success() {
         return Err(format!("Mod download failed with HTTP {}", resp.status()).into());
     }
     let mut bytes = Vec::new();
-    resp.take(MAX_MOD_BYTES as u64 + 1).read_to_end(&mut bytes)?;
+    resp.take(MAX_MOD_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)?;
     if bytes.len() as u64 != file.size {
         return Err("Mod download size mismatch".into());
     }
@@ -63,7 +64,12 @@ fn place(game: &Path, prior: Option<&mods::ModEntry>, filename: &str, bytes: &[u
     // also what frees the destination path.
     let backup = prior.and_then(|old| {
         let old_path = dir.join(old.disk_name());
-        old_path.is_file().then(|| (old.disk_name(), dir.join(format!(".andromeda-backup-{}", old.disk_name()))))
+        old_path.is_file().then(|| {
+            (
+                old.disk_name(),
+                dir.join(format!(".andromeda-backup-{}", old.disk_name())),
+            )
+        })
     });
     if let Some((old_name, bak)) = &backup {
         let old_path = dir.join(old_name);
@@ -160,13 +166,9 @@ pub fn install_project(
         }
     };
     let mut reg = mods::load(game)?;
-    let plan: Plan = modrinth::plan_install(
-        target,
-        mc,
-        facet,
-        &|p| reg.installed(p),
-        &|p| modrinth::versions(dl, cache, p, facet, mc).map(|t| t.0),
-    )?;
+    let plan: Plan = modrinth::plan_install(target, mc, facet, &|p| reg.installed(p), &|p| {
+        modrinth::versions(dl, cache, p, facet, mc).map(|t| t.0)
+    })?;
     let c = client()?;
     // Reverse-direction check: the metadata of the builds already
     // installed may declare the incoming projects incompatible. Gather the
@@ -191,7 +193,8 @@ pub fn install_project(
         let prior = reg.get(&step.project_id).cloned();
         let bytes = download_verified(&c, &step.file)?;
         place(game, prior.as_ref(), &step.file.filename, &bytes)?;
-        if let Err(e) = mods::record(&mut reg, step, mc, facet).and_then(|_| mods::save(game, &reg)) {
+        if let Err(e) = mods::record(&mut reg, step, mc, facet).and_then(|_| mods::save(game, &reg))
+        {
             rollback(game, prior.as_ref(), &step.file.filename);
             return Err(e);
         }
@@ -229,7 +232,10 @@ mod tests {
         fs::create_dir_all(game.join("mods")).unwrap();
         place(&game, None, "x-1.0.jar", b"jar").unwrap();
         assert_eq!(fs::read(game.join("mods/x-1.0.jar")).unwrap(), b"jar");
-        assert!(place(&game, None, "x-1.0.jar", b"jar").is_err(), "no clobber");
+        assert!(
+            place(&game, None, "x-1.0.jar", b"jar").is_err(),
+            "no clobber"
+        );
         assert_eq!(fs::read(game.join("mods/x-1.0.jar")).unwrap(), b"jar");
         let _ = fs::remove_dir_all(&game);
     }
@@ -266,7 +272,10 @@ mod tests {
         );
         rollback(&game, Some(&prior), "x-1.0.jar");
         assert_eq!(fs::read(game.join("mods/x-0.9.jar")).unwrap(), b"old");
-        assert!(!game.join("mods/x-1.0.jar").exists(), "rollback drops the new file");
+        assert!(
+            !game.join("mods/x-1.0.jar").exists(),
+            "rollback drops the new file"
+        );
         // Replace again and commit this time.
         place(&game, Some(&prior), "x-1.0.jar", b"new").unwrap();
         commit_backup(&game, Some(&prior));
@@ -280,7 +289,8 @@ mod tests {
         let game = std::env::temp_dir().join(format!("andromeda-modsl-{}", std::process::id()));
         let _ = fs::remove_dir_all(&game);
         fs::create_dir_all(game.join("mods")).unwrap();
-        let outside = std::env::temp_dir().join(format!("andromeda-outside-{}", std::process::id()));
+        let outside =
+            std::env::temp_dir().join(format!("andromeda-outside-{}", std::process::id()));
         fs::write(&outside, b"out").unwrap();
         std::os::unix::fs::symlink(&outside, game.join("mods/x-0.9.jar")).unwrap();
         let prior = old_entry("x-0.9.jar");
@@ -296,8 +306,7 @@ mod tests {
             sha512_of(b"abc"),
             "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a\
              2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
-                .replace(' ', "")
-                .replace('\n', "")
+                .replace([' ', '\n'], "")
         );
     }
 
@@ -359,7 +368,10 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(again.installed.is_empty(), "exact installed builds need no work");
+        assert!(
+            again.installed.is_empty(),
+            "exact installed builds need no work"
+        );
         let _ = fs::remove_dir_all(&game);
         let _ = fs::remove_dir_all(&cache);
     }

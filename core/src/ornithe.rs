@@ -36,8 +36,7 @@ pub fn validate_profile(profile: &Value, _game: &str, loader: &str, calamus: &st
     // (calamus_version checks gameVersion); the profile matches calamus.
     if super::fabric::maven_path(&format!("net.ornithemc:ornithe-loader:{loader}")).is_err()
         || profile["inheritsFrom"].as_str() != Some(calamus)
-        || profile["id"].as_str()
-            != Some(format!("ornithe-loader-{loader}-{calamus}").as_str())
+        || profile["id"].as_str() != Some(format!("ornithe-loader-{loader}-{calamus}").as_str())
         || !matches!(
             profile["mainClass"].as_str(),
             Some(
@@ -81,7 +80,10 @@ mod tests {
     }
     #[test]
     fn calamus_entry() {
-        assert_eq!(calamus_version(&detail(), "b1.7.3").unwrap(), "b1.7.3-client");
+        assert_eq!(
+            calamus_version(&detail(), "b1.7.3").unwrap(),
+            "b1.7.3-client"
+        );
         assert!(calamus_version(&detail(), "1.8.9").is_err());
     }
     #[test]

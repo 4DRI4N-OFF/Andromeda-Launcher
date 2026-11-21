@@ -134,7 +134,8 @@ pub fn install(root: &Path, game: &str, loader: &str) -> Result<InstalledLegacyF
     super::fabric::maven_path(&format!("net.legacyfabric:intermediary:{game}"))?;
     plain_dir(root)?;
     let c = client()?;
-    let u = format!("https://meta.legacyfabric.net/v2/versions/loader/{game}/{loader}/profile/json");
+    let u =
+        format!("https://meta.legacyfabric.net/v2/versions/loader/{game}/{loader}/profile/json");
     let manifest = root.join(format!("profile-legacyfabric-{game}-{loader}.json"));
     let cached = manifest.exists();
     let mut profile: Value = if cached {
@@ -168,7 +169,9 @@ pub fn install(root: &Path, game: &str, loader: &str) -> Result<InstalledLegacyF
         // repository; downloads stay pinned to approved hosts (no redirects).
         let host = match lib["url"].as_str() {
             Some("https://maven.fabricmc.net/") => "https://maven.fabricmc.net/",
-            Some("https://maven.legacyfabric.net/") => "https://repo.legacyfabric.net/legacyfabric/",
+            Some("https://maven.legacyfabric.net/") => {
+                "https://repo.legacyfabric.net/legacyfabric/"
+            }
             _ => return Err("Unapproved LegacyFabric library host".into()),
         };
         let url = format!("{host}{rel}");
@@ -340,7 +343,11 @@ mod cache_tests {
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, b"verified").unwrap();
             use sha1::{Digest, Sha1};
-            let host=if n.starts_with("net.legacyfabric:"){"https://maven.legacyfabric.net/"}else{"https://maven.fabricmc.net/"};
+            let host = if n.starts_with("net.legacyfabric:") {
+                "https://maven.legacyfabric.net/"
+            } else {
+                "https://maven.fabricmc.net/"
+            };
             libs.push(serde_json::json!({"name":n,"url":host,"sha1":format!("{:x}",Sha1::digest(b"verified")),"size":8}));
         }
         let profile = serde_json::json!({"id":"fabric-loader-0.20.1-1.21.11","inheritsFrom":"1.21.11","mainClass":"net.fabricmc.loader.impl.launch.knot.KnotClient","libraries":libs});
@@ -380,4 +387,3 @@ mod cache_tests {
         fs::remove_dir_all(root).unwrap();
     }
 }
-

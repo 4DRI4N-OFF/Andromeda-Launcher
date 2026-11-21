@@ -128,7 +128,10 @@ fn snapshot_coordinates(metadata: &str, version: &str) -> Result<String> {
     let base = version
         .strip_suffix("-SNAPSHOT")
         .ok_or("Not a snapshot version")?;
-    if base.is_empty() || base.bytes().any(|b| !(b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-')))
+    if base.is_empty()
+        || base
+            .bytes()
+            .any(|b| !(b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-')))
     {
         return Err("Invalid snapshot base version".into());
     }
@@ -200,11 +203,8 @@ pub fn install(root: &Path, game: &str) -> Result<InstalledLiteLoader> {
     }
     let c = client("AndromedaLauncher/0.0.1")?;
     let maven_ua = client("Apache-Maven/3.9.6")?;
-    let manifest: Value = serde_json::from_slice(&get(
-        &c,
-        super::liteloader::MANIFEST_URL,
-        MAX_META,
-    )?)?;
+    let manifest: Value =
+        serde_json::from_slice(&get(&c, super::liteloader::MANIFEST_URL, MAX_META)?)?;
     let selected = super::liteloader::select(&manifest, game)?;
     let mut files: Vec<(PathBuf, Value)> = Vec::new();
     // The LiteLoader jar itself.
@@ -379,7 +379,9 @@ fn install_cached(root: &Path, game: &str, manifest_path: &Path) -> Result<Insta
     let mut out = Vec::new();
     for f in files {
         let rel = f["path"].as_str().ok_or("Missing LiteLoader cache path")?;
-        if rel.split('/').any(|p| p.is_empty() || p == "." || p == "..")
+        if rel
+            .split('/')
+            .any(|p| p.is_empty() || p == "." || p == "..")
             || rel.contains('\\')
             || rel.contains(':')
         {
@@ -462,7 +464,11 @@ mod cache_tests {
             serde_json::to_vec(&record).unwrap(),
         )
         .unwrap();
-        (root, sha1_of(b"liteloader-bytes"), sha1_of(b"launchwrapper-bytes"))
+        (
+            root,
+            sha1_of(b"liteloader-bytes"),
+            sha1_of(b"launchwrapper-bytes"),
+        )
     }
 
     #[test]

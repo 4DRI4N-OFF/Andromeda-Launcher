@@ -4,27 +4,23 @@
 )]
 // Tabler MIT notice is retained in executable distributions.
 #[used]
-static TABLER_LICENSE: [u8; 1073] = *include_bytes!("../ui/tabler/LICENSE");
+static TABLER_LICENSE: &[u8] = include_bytes!("../ui/tabler/LICENSE");
 
-
-mod startup;
-mod startup_gate;
-mod startup_data;
-mod startup_cover;
-mod startup_runtime;
-mod startup_placement;
-mod startup_resize;
-mod startup_sheen;
+mod mods_wire;
 mod motion_ui;
 mod native_login;
+mod startup;
+mod startup_cover;
+mod startup_data;
+mod startup_gate;
+mod startup_placement;
+mod startup_resize;
+mod startup_runtime;
+mod startup_sheen;
 mod theme_ui;
-mod mods_wire;
 use andromeda_core::settings::Settings;
 use slint::ComponentHandle;
-use std::{
-    path::PathBuf,
-    rc::Rc,
-};
+use std::{path::PathBuf, rc::Rc};
 slint::include_modules!();
 
 fn data_dir() -> PathBuf {
@@ -105,9 +101,18 @@ fn refresh_instances(
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(labels)));
     ui.set_instance_index(0);
 }
-struct PreparedMain { ui: MainWindow, _motion_timer: Rc<slint::Timer>, auth_cancel: std::sync::Arc<std::sync::atomic::AtomicBool> }
-fn main() -> Result<(), slint::PlatformError> {startup_runtime::run(data_dir())}
-fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<PreparedMain, slint::PlatformError> {
+struct PreparedMain {
+    ui: MainWindow,
+    _motion_timer: Rc<slint::Timer>,
+    auth_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+fn main() -> Result<(), slint::PlatformError> {
+    startup_runtime::run(data_dir())
+}
+fn prepare_main(
+    dir: PathBuf,
+    prepared: startup_data::Prepared,
+) -> Result<PreparedMain, slint::PlatformError> {
     let settings_path = dir.join("settings.json");
     let s = prepared.settings;
     let ui = MainWindow::new()?;
@@ -396,48 +401,75 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
     let vr_root = instance_root.clone();
     let vr_versions = version_ids.clone();
     ui.on_version_refresh(move |filter| {
-        let Some(ui) = vr_weak.upgrade() else { return; };
-        if ui.get_launch_busy() { return; }
+        let Some(ui) = vr_weak.upgrade() else {
+            return;
+        };
+        if ui.get_launch_busy() {
+            return;
+        }
         ui.set_launch_busy(true);
         ui.set_launch_status("Loading the version catalog...".into());
         let weak = vr_weak.clone();
         let root = vr_root.clone();
         let versions = vr_versions.clone();
         std::thread::spawn(move || {
-            let result = (|| -> Result<Vec<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
-                use andromeda_core::catalog::{mc_versions, McFilter, McKind};
-                let dl = andromeda_core::vanilla::Downloader::new()?;
-                let cache = root.join("catalog-cache");
-                let f = match filter {
-                    0 => McFilter { release: true, snapshot: false, old_beta: false, old_alpha: false },
-                    1 => McFilter { release: false, snapshot: true, old_beta: false, old_alpha: false },
-                    2 => McFilter { release: false, snapshot: false, old_beta: true, old_alpha: true },
-                    _ => McFilter::all(),
-                };
-                let page = mc_versions(&dl, &cache, f)?;
-                Ok(page
-                    .items
-                    .iter()
-                    .map(|v| {
-                        let kind = match v.kind {
-                            McKind::Release => "release",
-                            McKind::Snapshot => "snapshot",
-                            McKind::OldBeta => "old beta",
-                            McKind::OldAlpha => "old alpha",
-                        };
-                        (v.id.clone(), format!("{} · {}", v.id, kind))
-                    })
-                    .collect())
-            })();
+            let result =
+                (|| -> Result<Vec<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+                    use andromeda_core::catalog::{mc_versions, McFilter, McKind};
+                    let dl = andromeda_core::vanilla::Downloader::new()?;
+                    let cache = root.join("catalog-cache");
+                    let f = match filter {
+                        0 => McFilter {
+                            release: true,
+                            snapshot: false,
+                            old_beta: false,
+                            old_alpha: false,
+                        },
+                        1 => McFilter {
+                            release: false,
+                            snapshot: true,
+                            old_beta: false,
+                            old_alpha: false,
+                        },
+                        2 => McFilter {
+                            release: false,
+                            snapshot: false,
+                            old_beta: true,
+                            old_alpha: true,
+                        },
+                        _ => McFilter::all(),
+                    };
+                    let page = mc_versions(&dl, &cache, f)?;
+                    Ok(page
+                        .items
+                        .iter()
+                        .map(|v| {
+                            let kind = match v.kind {
+                                McKind::Release => "release",
+                                McKind::Snapshot => "snapshot",
+                                McKind::OldBeta => "old beta",
+                                McKind::OldAlpha => "old alpha",
+                            };
+                            (v.id.clone(), format!("{} · {}", v.id, kind))
+                        })
+                        .collect())
+                })();
             let _ = weak.upgrade_in_event_loop(move |ui| {
                 match result {
                     Ok(list) => {
                         let (ids, labels): (Vec<String>, Vec<slint::SharedString>) =
                             list.into_iter().map(|(i, l)| (i, l.into())).unzip();
                         let n = labels.len();
-                        if let Ok(mut v) = versions.lock() { *v = ids; }
+                        if let Ok(mut v) = versions.lock() {
+                            *v = ids;
+                        }
                         ui.set_version_choices(slint::ModelRc::new(slint::VecModel::from(labels)));
-                        ui.set_launch_status(format!("{n} versions listed. Pick one version and at most one loader.").into());
+                        ui.set_launch_status(
+                            format!(
+                                "{n} versions listed. Pick one version and at most one loader."
+                            )
+                            .into(),
+                        );
                     }
                     Err(e) => ui.set_launch_status(format!("Could not load versions: {e}").into()),
                 }
@@ -454,8 +486,14 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
     ui.on_version_picked(move |index| {
         // Refresh which loaders have builds for the picked Minecraft version
         // and the build list of the currently selected loader.
-        let Some(ui) = vp_weak.upgrade() else { return; };
-        let mc = match vp_versions.lock().ok().and_then(|v| v.get(index as usize).cloned()) {
+        let Some(ui) = vp_weak.upgrade() else {
+            return;
+        };
+        let mc = match vp_versions
+            .lock()
+            .ok()
+            .and_then(|v| v.get(index as usize).cloned())
+        {
             Some(mc) => mc,
             None => return,
         };
@@ -464,8 +502,12 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         let weak = vp_weak.clone();
         let root = vp_root.clone();
         let loader_versions_shared = vp_loader_versions.clone();
+        type LaunchPrep = Result<
+            (Vec<bool>, Vec<String>, Vec<slint::SharedString>),
+            Box<dyn std::error::Error + Send + Sync>,
+        >;
         std::thread::spawn(move || {
-            let result = (|| -> Result<(Vec<bool>, Vec<String>, Vec<slint::SharedString>), Box<dyn std::error::Error + Send + Sync>> {
+            let result = (|| -> LaunchPrep {
                 use andromeda_core::catalog::{available_loaders, loader_versions, LoaderKind};
                 let dl = andromeda_core::vanilla::Downloader::new()?;
                 let cache = root.join("catalog-cache");
@@ -476,14 +518,28 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                     .collect();
                 let mut ids = Vec::new();
                 let mut labels = Vec::new();
-                if let Some(k) = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric), Some(LoaderKind::Babric), Some(LoaderKind::Ornithe), Some(LoaderKind::LiteLoader)]
-                    .get(kind_index as usize)
-                    .copied()
-                    .flatten()
+                if let Some(k) = [
+                    None,
+                    Some(LoaderKind::Fabric),
+                    Some(LoaderKind::Quilt),
+                    Some(LoaderKind::Forge),
+                    Some(LoaderKind::NeoForge),
+                    Some(LoaderKind::LegacyFabric),
+                    Some(LoaderKind::Babric),
+                    Some(LoaderKind::Ornithe),
+                    Some(LoaderKind::LiteLoader),
+                ]
+                .get(kind_index as usize)
+                .copied()
+                .flatten()
                 {
                     if avail.contains(&k) {
                         for v in loader_versions(&dl, &cache, k, &mc)?.items {
-                            let tag = if v.stable == Some(true) { " · stable" } else { "" };
+                            let tag = if v.stable == Some(true) {
+                                " · stable"
+                            } else {
+                                ""
+                            };
                             labels.push(format!("{}{tag}", v.version).into());
                             ids.push(v.version);
                         }
@@ -499,9 +555,13 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                             ui.set_loader_index(0);
                         }
                         ui.set_loader_available(slint::ModelRc::new(slint::VecModel::from(flags)));
-                        if let Ok(mut v) = loader_versions_shared.lock() { *v = ids; }
+                        if let Ok(mut v) = loader_versions_shared.lock() {
+                            *v = ids;
+                        }
                         ui.set_loader_version_index(0);
-                        ui.set_loader_version_choices(slint::ModelRc::new(slint::VecModel::from(labels)));
+                        ui.set_loader_version_choices(slint::ModelRc::new(slint::VecModel::from(
+                            labels,
+                        )));
                     }
                     Err(e) => ui.set_launch_status(format!("Could not check loaders: {e}").into()),
                 }
@@ -556,9 +616,9 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
             });
         });
     });
-mods_wire::wire_mods!(ui, instances, instance_root);
+    mods_wire::wire_mods!(ui, instances, instance_root);
 
-ui.invoke_mods_refresh();
+    ui.invoke_mods_refresh();
 
     ui.invoke_version_refresh(0);
     let launch_weak = ui.as_weak();
@@ -639,7 +699,13 @@ ui.invoke_mods_refresh();
                             &version,
                         )?;
                         andromeda_core::launch::prepare_upstream(
-                            &root, &mc, &name, memory, &game, session.as_ref(), &spec,
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &spec,
                         )?
                     }
                     Some(andromeda_core::instances::Loader::NeoForge { version }) => {
@@ -650,7 +716,13 @@ ui.invoke_mods_refresh();
                             &version,
                         )?;
                         andromeda_core::launch::prepare_upstream(
-                            &root, &mc, &name, memory, &game, session.as_ref(), &spec,
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &spec,
                         )?
                     }
                     Some(andromeda_core::instances::Loader::LegacyFabric { version }) => {
@@ -712,9 +784,7 @@ ui.invoke_mods_refresh();
                             Some(game) => andromeda_core::launch::prepare_in_game_dir(
                                 &root, &mc, &name, memory, &game,
                             )?,
-                            None => {
-                                andromeda_core::launch::prepare(&root, &mc, &name, memory)?
-                            }
+                            None => andromeda_core::launch::prepare(&root, &mc, &name, memory)?,
                         },
                     },
                 };
@@ -748,6 +818,9 @@ ui.invoke_mods_refresh();
         });
     });
 
-    Ok(PreparedMain {ui,_motion_timer,auth_cancel})
+    Ok(PreparedMain {
+        ui,
+        _motion_timer,
+        auth_cancel,
+    })
 }
-

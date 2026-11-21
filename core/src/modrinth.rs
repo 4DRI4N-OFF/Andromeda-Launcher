@@ -203,7 +203,12 @@ fn parse_dependency(v: &Value) -> Result<Dependency> {
 /// must already be loader/MC-filtered by the request; each entry is
 /// re-checked against `facet` and `mc` so a stale or hostile cache entry
 /// can never install for the wrong game.
-pub fn parse_versions(body: &Value, project_id: &str, facet: &str, mc: &str) -> Result<Vec<ModVersion>> {
+pub fn parse_versions(
+    body: &Value,
+    project_id: &str,
+    facet: &str,
+    mc: &str,
+) -> Result<Vec<ModVersion>> {
     if !id_valid(project_id) {
         return Err("Invalid Modrinth project id".into());
     }
@@ -215,12 +220,16 @@ pub fn parse_versions(body: &Value, project_id: &str, facet: &str, mc: &str) -> 
     let mut out = Vec::new();
     for v in list {
         let id = v["id"].as_str().ok_or("Mod version missing id")?;
-        let pid = v["project_id"].as_str().ok_or("Mod version missing project")?;
+        let pid = v["project_id"]
+            .as_str()
+            .ok_or("Mod version missing project")?;
         if !id_valid(id) || pid != project_id {
             return Err("Mod version id mismatch".into());
         }
         let name = v["name"].as_str().unwrap_or("").to_owned();
-        let number = v["version_number"].as_str().ok_or("Mod version missing number")?;
+        let number = v["version_number"]
+            .as_str()
+            .ok_or("Mod version missing number")?;
         if !name_valid(&name) || !name_valid(number) {
             return Err("Unsafe Modrinth version label".into());
         }
@@ -281,7 +290,9 @@ pub fn parse_versions(body: &Value, project_id: &str, facet: &str, mc: &str) -> 
 
 /// Parse the search response into validated project summaries.
 pub fn parse_search(body: &Value) -> Result<Vec<Project>> {
-    let hits = body["hits"].as_array().ok_or("Modrinth search missing hits")?;
+    let hits = body["hits"]
+        .as_array()
+        .ok_or("Modrinth search missing hits")?;
     if hits.len() > MAX_HITS {
         return Err("Too many Modrinth search hits".into());
     }
@@ -389,8 +400,7 @@ pub fn plan_install(
     let mut committed: std::collections::BTreeMap<String, String> =
         std::collections::BTreeMap::new();
     // (version to process, required_by, depth)
-    let mut queue: Vec<(ModVersion, Option<String>, usize)> =
-        vec![(target.clone(), None, 0usize)];
+    let mut queue: Vec<(ModVersion, Option<String>, usize)> = vec![(target.clone(), None, 0usize)];
     while let Some((version, required_by, depth)) = queue.pop() {
         if depth > MAX_DEPTH {
             return Err("Modrinth dependency graph too deep".into());
@@ -579,7 +589,8 @@ pub fn search(
     let digest = Sha256::digest(format!("search|{facet}|{query}").as_bytes());
     let hex: String = digest[..8].iter().map(|b| format!("{b:02x}")).collect();
     let name = format!("modrinth-{hex}");
-    let (body, stale) = crate::catalog::cached_get(dl, cache, &name, &search_url(facet, query, 24))?;
+    let (body, stale) =
+        crate::catalog::cached_get(dl, cache, &name, &search_url(facet, query, 24))?;
     Ok((parse_search(&serde_json::from_str(&body)?)?, stale))
 }
 
@@ -594,7 +605,10 @@ pub fn versions(
     let name = format!("modrinth-v-{project_id}-{facet}-{mc}");
     let (body, stale) =
         crate::catalog::cached_get(dl, cache, &name, &versions_url(project_id, facet, mc))?;
-    Ok((parse_versions(&serde_json::from_str(&body)?, project_id, facet, mc)?, stale))
+    Ok((
+        parse_versions(&serde_json::from_str(&body)?, project_id, facet, mc)?,
+        stale,
+    ))
 }
 
 #[cfg(test)]
@@ -631,10 +645,7 @@ mod tests {
     fn parses_versions_and_skips_inapplicable() {
         let mut beta = version("BBBBbbbb", "PROJproj", "beta", json!([]));
         beta["game_versions"] = json!(["1.20.1"]);
-        let body = json!([
-            version("AAAAaaaa", "PROJproj", "release", json!([])),
-            beta,
-        ]);
+        let body = json!([version("AAAAaaaa", "PROJproj", "release", json!([])), beta,]);
         let vs = parse_versions(&body, "PROJproj", "forge", "1.12.2").unwrap();
         assert_eq!(vs.len(), 1);
         assert_eq!(vs[0].id, "AAAAaaaa");
@@ -664,7 +675,10 @@ mod tests {
         assert_eq!(pick(&vs).unwrap().0.id, "CCCCcccc");
         let vs: Vec<_> = vs.into_iter().filter(|v| v.id != "CCCCcccc").collect();
         assert_eq!(pick(&vs).unwrap().0.id, "BBBBbbbb");
-        assert!(pick(&vs).unwrap().1, "beta fallback must be flagged unstable");
+        assert!(
+            pick(&vs).unwrap().1,
+            "beta fallback must be flagged unstable"
+        );
     }
 
     fn no_installed(_: &str) -> Option<Installed> {
@@ -674,25 +688,39 @@ mod tests {
     #[test]
     fn plan_resolves_required_chain_dependencies_first() {
         // target DEP0 requires LIB1 (any build); LIB1 requires LIB2 pinned.
-        let dep = |p: &str, v: Option<&str>| {
-            json!({"project_id": p, "version_id": v, "dependency_type": "required"})
-        };
+        let dep = |p: &str, v: Option<&str>| json!({"project_id": p, "version_id": v, "dependency_type": "required"});
         let target = parse_versions(
-            &json!([version("TGT0tgt0", "ROOTroot", "release", json!([dep("LIB1lib1", None)]))]),
-            "ROOTroot", "forge", "1.12.2",
+            &json!([version(
+                "TGT0tgt0",
+                "ROOTroot",
+                "release",
+                json!([dep("LIB1lib1", None)])
+            )]),
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
         let versions_of = |p: &str| -> Result<Vec<ModVersion>> {
             let body = match p {
-                "LIB1lib1" => json!([version("L1v1l1v1", "LIB1lib1", "release", json!([dep("LIB2lib2", Some("L2v2l2v2"))]))]),
+                "LIB1lib1" => json!([version(
+                    "L1v1l1v1",
+                    "LIB1lib1",
+                    "release",
+                    json!([dep("LIB2lib2", Some("L2v2l2v2"))])
+                )]),
                 "LIB2lib2" => json!([version("L2v2l2v2", "LIB2lib2", "release", json!([]))]),
                 _ => json!([]),
             };
             parse_versions(&body, p, "forge", "1.12.2")
         };
         let plan = plan_install(&target, "1.12.2", "forge", &no_installed, &versions_of).unwrap();
-        let order: Vec<&str> = plan.installs.iter().map(|p| p.project_id.as_str()).collect();
+        let order: Vec<&str> = plan
+            .installs
+            .iter()
+            .map(|p| p.project_id.as_str())
+            .collect();
         assert_eq!(order, ["LIB2lib2", "LIB1lib1", "ROOTroot"]);
         assert_eq!(plan.installs[0].required_by.as_deref(), Some("LIB1lib1"));
         assert_eq!(plan.installs[2].required_by, None);
@@ -700,10 +728,13 @@ mod tests {
 
     #[test]
     fn plan_fails_when_required_dep_has_no_compatible_build() {
-        let dep = json!({"project_id": "LIB9lib9", "version_id": null, "dependency_type": "required"});
+        let dep =
+            json!({"project_id": "LIB9lib9", "version_id": null, "dependency_type": "required"});
         let target = parse_versions(
             &json!([version("TGT0tgt0", "ROOTroot", "release", json!([dep]))]),
-            "ROOTroot", "forge", "1.12.2",
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
@@ -716,7 +747,9 @@ mod tests {
         let dep = json!({"project_id": "BAD0bad0", "version_id": null, "dependency_type": "incompatible"});
         let target = parse_versions(
             &json!([version("TGT0tgt0", "ROOTroot", "release", json!([dep]))]),
-            "ROOTroot", "forge", "1.12.2",
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
@@ -743,21 +776,28 @@ mod tests {
         ]);
         let target = parse_versions(
             &json!([version("TGT0tgt0", "ROOTroot", "release", deps)]),
-            "ROOTroot", "forge", "1.12.2",
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
         let versions_of = |_: &str| -> Result<Vec<ModVersion>> { Ok(vec![]) };
         let plan = plan_install(&target, "1.12.2", "forge", &no_installed, &versions_of).unwrap();
         assert_eq!(plan.installs.len(), 1);
-        assert_eq!(plan.optional, [("OPT1opt1".to_string(), "ROOTroot".to_string())]);
+        assert_eq!(
+            plan.optional,
+            [("OPT1opt1".to_string(), "ROOTroot".to_string())]
+        );
     }
 
     #[test]
     fn plan_skips_exact_installed_build_and_updates_stale_one() {
         let target = parse_versions(
             &json!([version("TGT0tgt0", "ROOTroot", "release", json!([]))]),
-            "ROOTroot", "forge", "1.12.2",
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
@@ -771,7 +811,10 @@ mod tests {
             })
         };
         let plan = plan_install(&target, "1.12.2", "forge", &same, &versions_of).unwrap();
-        assert!(plan.installs.is_empty(), "exact installed build needs no work");
+        assert!(
+            plan.installs.is_empty(),
+            "exact installed build needs no work"
+        );
         assert!(plan.enable.is_empty());
         let stale = |_: &str| {
             Some(Installed {
@@ -787,17 +830,30 @@ mod tests {
 
     #[test]
     fn plan_breaks_dependency_cycles() {
-        let dep = |p: &str| json!({"project_id": p, "version_id": null, "dependency_type": "required"});
+        let dep =
+            |p: &str| json!({"project_id": p, "version_id": null, "dependency_type": "required"});
         let target = parse_versions(
-            &json!([version("TGT0tgt0", "ROOTroot", "release", json!([dep("CYC1cyc1")]))]),
-            "ROOTroot", "forge", "1.12.2",
+            &json!([version(
+                "TGT0tgt0",
+                "ROOTroot",
+                "release",
+                json!([dep("CYC1cyc1")])
+            )]),
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
         let versions_of = |p: &str| -> Result<Vec<ModVersion>> {
             let body = match p {
                 // cycle back to ROOTroot
-                "CYC1cyc1" => json!([version("C1v1c1v1", "CYC1cyc1", "release", json!([dep("ROOTroot")]))]),
+                "CYC1cyc1" => json!([version(
+                    "C1v1c1v1",
+                    "CYC1cyc1",
+                    "release",
+                    json!([dep("ROOTroot")])
+                )]),
                 "ROOTroot" => json!([version("TGT0tgt0", "ROOTroot", "release", json!([]))]),
                 _ => json!([]),
             };
@@ -811,7 +867,9 @@ mod tests {
     fn disabled_installed_build_is_enabled_not_reinstalled() {
         let target = parse_versions(
             &json!([version("TGT0tgt0", "ROOTroot", "release", json!([]))]),
-            "ROOTroot", "forge", "1.12.2",
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
@@ -831,14 +889,18 @@ mod tests {
 
     #[test]
     fn two_pinned_builds_of_one_dependency_conflict() {
-        let dep = |p: &str, v: Option<&str>| {
-            json!({"project_id": p, "version_id": v, "dependency_type": "required"})
-        };
+        let dep = |p: &str, v: Option<&str>| json!({"project_id": p, "version_id": v, "dependency_type": "required"});
         // ROOT requires LIB1 pinned L1v1 and LIB2; LIB2 requires LIB1 pinned OTHER.
         let target = parse_versions(
-            &json!([version("TGT0tgt0", "ROOTroot", "release",
-                json!([dep("LIB1lib1", Some("L1v1l1v1")), dep("LIB2lib2", None)]))]),
-            "ROOTroot", "forge", "1.12.2",
+            &json!([version(
+                "TGT0tgt0",
+                "ROOTroot",
+                "release",
+                json!([dep("LIB1lib1", Some("L1v1l1v1")), dep("LIB2lib2", None)])
+            )]),
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
@@ -848,8 +910,12 @@ mod tests {
                     version("L1v1l1v1", "LIB1lib1", "release", json!([])),
                     version("OTHERoth", "LIB1lib1", "release", json!([])),
                 ]),
-                "LIB2lib2" => json!([version("L2v2l2v2", "LIB2lib2", "release",
-                    json!([dep("LIB1lib1", Some("OTHERoth"))]))]),
+                "LIB2lib2" => json!([version(
+                    "L2v2l2v2",
+                    "LIB2lib2",
+                    "release",
+                    json!([dep("LIB1lib1", Some("OTHERoth"))])
+                )]),
                 _ => json!([]),
             };
             parse_versions(&body, p, "forge", "1.12.2")
@@ -862,21 +928,29 @@ mod tests {
 
     #[test]
     fn matching_pinned_build_is_accepted() {
-        let dep = |p: &str, v: Option<&str>| {
-            json!({"project_id": p, "version_id": v, "dependency_type": "required"})
-        };
+        let dep = |p: &str, v: Option<&str>| json!({"project_id": p, "version_id": v, "dependency_type": "required"});
         let target = parse_versions(
-            &json!([version("TGT0tgt0", "ROOTroot", "release",
-                json!([dep("LIB1lib1", Some("L1v1l1v1")), dep("LIB2lib2", None)]))]),
-            "ROOTroot", "forge", "1.12.2",
+            &json!([version(
+                "TGT0tgt0",
+                "ROOTroot",
+                "release",
+                json!([dep("LIB1lib1", Some("L1v1l1v1")), dep("LIB2lib2", None)])
+            )]),
+            "ROOTroot",
+            "forge",
+            "1.12.2",
         )
         .unwrap()
         .remove(0);
         let versions_of = |p: &str| -> Result<Vec<ModVersion>> {
             let body = match p {
                 "LIB1lib1" => json!([version("L1v1l1v1", "LIB1lib1", "release", json!([]))]),
-                "LIB2lib2" => json!([version("L2v2l2v2", "LIB2lib2", "release",
-                    json!([dep("LIB1lib1", Some("L1v1l1v1"))]))]),
+                "LIB2lib2" => json!([version(
+                    "L2v2l2v2",
+                    "LIB2lib2",
+                    "release",
+                    json!([dep("LIB1lib1", Some("L1v1l1v1"))])
+                )]),
                 _ => json!([]),
             };
             parse_versions(&body, p, "forge", "1.12.2")
