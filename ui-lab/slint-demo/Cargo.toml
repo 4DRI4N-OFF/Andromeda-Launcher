@@ -11,3 +11,5 @@ slint-build = "1.19"
 
 [profile.release]
 opt-level = 2
+
+[workspace]
