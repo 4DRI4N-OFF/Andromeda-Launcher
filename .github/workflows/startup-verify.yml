@@ -1,0 +1,81 @@
+# Consolidated verification for the startup first-frame repair.
+# One run does the full backend gate (fmt, clippy, tests, debug+release builds,
+# smoke) AND the visual proof that the app reaches real Home on Windows
+# (.github/scripts/startup-verify.ps1): it waits for the main window titled
+# "Andromeda Launcher" (never a fixed sleep), fails on splash/modal-only
+# states, preserves data/logs per run, and the artifact upload errors out if
+# evidence is missing. The exe artifact of this same code is the pre-release
+# binary candidate.
+# No real accounts, no user data: the exe runs with throwaway HOME/APPDATA on
+# the runner and is killed after capture.
+name: Startup verify (consolidated)
+on:
+  workflow_dispatch:
+  # TEMPORARY push trigger, only so this workflow can run before existing on
+  # the default branch. MUST be removed before any integration of this branch.
+  push:
+    branches:
+      - fix/startup-unverified-frame
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    # ci.yml needed 60 min for build alone at 45m02s; +visual ~5m. 75 leaves headroom.
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: cargo build --workspace --locked
+      - run: cargo build --release -p andromeda-app --locked
+      - name: Smoke-run the packaged exe (non-interactive session)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "target/release/andromeda.exe" -PassThru
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) { Write-Error "andromeda.exe exited early (code $($p.ExitCode))"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "andromeda.exe stayed alive 15s without an early crash"
+      - name: Preserve smoke-run logs and reset data dir (attribution)
+        if: always()
+        shell: pwsh
+        run: |
+          # The smoke run above also writes $GITHUB_WORKSPACE/data/logs (data_dir
+          # is compile-time: CARGO_MANIFEST_DIR.parent()/data). Preserve those
+          # logs as the smoke run's own evidence, then remove the directory so
+          # the visual run's logs below are unambiguously its own.
+          New-Item -ItemType Directory -Force "verify-out/logs/smoke" | Out-Null
+          if (Test-Path "data/logs") {
+            Copy-Item "data/logs/*" "verify-out/logs/smoke/" -Recurse -Force
+            Remove-Item "data" -Recurse -Force
+            Write-Host "smoke logs preserved and data/ reset for clean visual attribution"
+          } else {
+            Write-Host "smoke run produced no data/logs (process died early or never reached load())"
+          }
+      - name: Visual verify - wait for real Home, not fixed seconds
+        shell: pwsh
+        run: ./.github/scripts/startup-verify.ps1
+      - name: Probe GPU/driver context
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "verify-out/logs" | Out-Null
+          Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion | Format-Table -AutoSize | Out-String | Out-File "verify-out/logs/gpu.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: startup-verify-out
+          path: verify-out
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: andromeda-windows-x86_64
+          path: target/release/andromeda.exe
+          retention-days: 14
