@@ -8,8 +8,10 @@ use slint::{
 };
 use std::{rc::Rc, time::Duration};
 slint::include_modules!();
+#[allow(dead_code)]
 #[path = "../src/motion_ui.rs"]
 mod motion_ui;
+#[allow(dead_code)]
 #[path = "../src/theme_ui.rs"]
 mod theme_ui;
 struct Offscreen(Rc<MinimalSoftwareWindow>);

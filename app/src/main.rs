@@ -464,8 +464,9 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         let weak = vp_weak.clone();
         let root = vp_root.clone();
         let loader_versions_shared = vp_loader_versions.clone();
+        type LaunchPrep = Result<(Vec<bool>, Vec<String>, Vec<slint::SharedString>), Box<dyn std::error::Error + Send + Sync>>;
         std::thread::spawn(move || {
-            let result = (|| -> Result<(Vec<bool>, Vec<String>, Vec<slint::SharedString>), Box<dyn std::error::Error + Send + Sync>> {
+            let result = (|| -> LaunchPrep {
                 use andromeda_core::catalog::{available_loaders, loader_versions, LoaderKind};
                 let dl = andromeda_core::vanilla::Downloader::new()?;
                 let cache = root.join("catalog-cache");

@@ -2,6 +2,7 @@
 use crate::{startup, startup_gate::{Gate,Stage,Event},startup_data, startup_cover,PreparedMain};
 use slint::ComponentHandle;
 use std::{cell::RefCell,rc::Rc,path::PathBuf,time::{Instant,Duration},sync::{Arc,atomic::{AtomicBool,Ordering}}};
+#[allow(deprecated)]
 mod ui {slint::slint! {import {SplashWindow} from "../ui/startup.slint";}}
 thread_local! {static ACTIVE:RefCell<Option<Rc<RefCell<Runtime>>>>=const {RefCell::new(None)};}
 struct Runtime {
@@ -120,7 +121,7 @@ impl Runtime {
  fn tick(&mut self){
   let attempt=self.gate.attempt();
   match self.gate.stage(){
-   Stage::Loading=>{let level=0.65+0.2*(self.started.elapsed().as_secs_f32()*std::f32::consts::TAU/2.8).sin();self.splash.set_ambience(level);if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());return;}},
+   Stage::Loading=>{let level=0.65+0.2*(self.started.elapsed().as_secs_f32()*std::f32::consts::TAU/2.8).sin();self.splash.set_ambience(level);if self.started.elapsed()>Duration::from_secs(60){self.fail("La lectura de los datos locales tarda demasiado. Puedes reintentar o cerrar sin cambiar tus archivos.".into());}},
    Stage::Intro=>{
     let start=self.intro_start.unwrap();
     let Some(elapsed)=Instant::now().checked_duration_since(start) else {

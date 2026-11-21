@@ -33,7 +33,7 @@ fn sha512_of(bytes: &[u8]) -> String {
 
 /// Fetch a mod archive, verified against the API-published sha512+size.
 pub fn download_verified(c: &reqwest::blocking::Client, file: &ModFile) -> Result<Vec<u8>> {
-    let mut resp = c.get(&file.url).send()?;
+    let resp = c.get(&file.url).send()?;
     if !resp.status().is_success() {
         return Err(format!("Mod download failed with HTTP {}", resp.status()).into());
     }
@@ -296,8 +296,7 @@ mod tests {
             sha512_of(b"abc"),
             "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a\
              2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
-                .replace(' ', "")
-                .replace('\n', "")
+                .replace([' ', '\n'], "")
         );
     }
 

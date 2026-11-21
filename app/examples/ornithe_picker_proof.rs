@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! Ornithe loader picker proof with LIVE catalog data and REAL input events.
 //! Scenario: select beta 1.7.3 through the Old filter and the real callbacks,
 //! confirm the availability flags enable exactly the Babric and Ornithe

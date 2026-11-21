@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! Legacy loader picker proof with LIVE catalog data and REAL input events.
 //! Scenario: select release 1.8.9 (a LegacyFabric-covered Minecraft) through
 //! the real callbacks, confirm the availability flags enable the sixth loader

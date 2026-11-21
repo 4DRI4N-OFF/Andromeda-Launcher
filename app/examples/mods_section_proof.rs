@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! Mods section UI proof with fixture data and REAL input events.
 //! The Mods section lives in Settings/Profiles (active-tab=3, settings-section=0),
 //! below the profile card, inside the outer settings ScrollView.
@@ -5,8 +6,8 @@
 //!  1. The section renders (non-background pixels) and is reachable by real wheel scroll.
 //!  2. A real click on an installed-mod row selects it (mod-index changes).
 //!  3. The inner mods list scrolls with real wheel events (later rows become clickable).
-//!  4. On/Off, Update, Remove, Search and Install selected all dispatch their callbacks
-//!     via real clicks (counters registered on each callback).
+//!  4. On/Off, Update, Remove, Search and Install selected all dispatch their callbacks via real clicks (counters registered on each callback).
+//!
 //! Fixture data only; catalog/network behaviour of the core is proven elsewhere.
 //! Captures: mods-proof/mods-section-{w}-full.bmp, -scrolled.bmp, -buttons.bmp.
 use slint::{platform::{software_renderer::{MinimalSoftwareWindow,RepaintBufferType},Platform,WindowAdapter,WindowEvent,PointerEventButton},ComponentHandle,LogicalPosition,Rgb8Pixel,ModelRc,VecModel,SharedString};

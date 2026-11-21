@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! LiteLoader loader picker proof with LIVE catalog data and REAL input events.
 //! Scenario: select release 1.12.2 through the real callbacks, confirm the
 //! availability flags match the live catalog (LiteLoader must be among them),
@@ -117,7 +118,7 @@ fn main()->Result<(),slint::PlatformError>{
  assert!(other_x>0.,"another enabled loader must accept a real click within the row");
  let replaced=ui.get_loader_version_choices();
  assert!(replaced.row_count()>0,"the replacing loader must list its live builds");
- assert!(replaced.row_data(0).unwrap_or_default().to_string()!=top,"build list must be replaced by the other loader's list");
+ assert!(replaced.row_data(0).unwrap_or_default()!=top,"build list must be replaced by the other loader's list");
  println!("event proof: selection is exclusive - another loader replaced LiteLoader, list swapped");
  // And back: LiteLoader replaces it again.
  click(&ui,lt_x,lt_y);

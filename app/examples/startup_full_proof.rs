@@ -1,8 +1,10 @@
 //! Full launcher layout fixture. No account/session/data access, no OS windows.
 use slint::{platform::{software_renderer::{MinimalSoftwareWindow,RepaintBufferType},Platform,WindowAdapter},ComponentHandle,Rgb8Pixel};
 use std::rc::Rc;
+#[allow(dead_code)]
 #[path="../src/startup.rs"] mod startup;
 slint::include_modules!();
+#[allow(dead_code)]
 #[path="../src/theme_ui.rs"] mod theme_ui;
 struct Offscreen(Rc<MinimalSoftwareWindow>);
 impl Platform for Offscreen {fn create_window_adapter(&self)->Result<Rc<dyn WindowAdapter>,slint::PlatformError>{Ok(self.0.clone())}}

@@ -1,8 +1,12 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! Native vector-only startup proof. No desktop window, account or game effects.
 use slint::{platform::{software_renderer::{MinimalSoftwareWindow,RepaintBufferType},Platform,WindowAdapter},ComponentHandle,Rgb8Pixel};
 use std::rc::Rc;
+#[allow(dead_code)]
 #[path="../src/startup.rs"] mod startup;
+#[allow(dead_code)]
 #[path="../src/startup_v23_parity.rs"] mod startup_v23_parity;
+#[allow(dead_code)]
 #[path="../src/startup_cover.rs"] mod startup_cover;
 slint::slint! { import { SplashWindow } from "../ui/startup.slint"; }
 struct Offscreen(Rc<MinimalSoftwareWindow>);

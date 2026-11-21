@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! Small-window layout proof with LIVE catalog data and REAL input events.
 //! At 1024x768 and 860x620 with b1.7.3 + Ornithe selected, the outer
 //! settings ScrollView must scroll far enough to bring the loader build

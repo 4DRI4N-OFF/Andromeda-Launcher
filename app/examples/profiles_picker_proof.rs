@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! Profiles picker proof with LIVE catalog data and REAL input events.
 //! Evidence: filter callback swaps live data; disabled loader buttons ignore
 //! synthetic clicks while enabled ones select; loader build rows are

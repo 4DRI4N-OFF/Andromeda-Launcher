@@ -1,6 +1,7 @@
 //! Physical-pixel splash placement. No global display settings are changed.
 #[derive(Clone,Copy,Debug,PartialEq,Eq)]
 pub struct Placement {pub x:i32,pub y:i32,pub width:u32,pub height:u32}
+#[allow(dead_code)] // used by tests, proof examples and the Windows build; not called by the Linux bin
 pub fn fit(left:i32,top:i32,right:i32,bottom:i32)->Option<Placement>{
  let w=right.checked_sub(left)?;let h=bottom.checked_sub(top)?;
  if w<32||h<18{return None;}
@@ -14,6 +15,7 @@ pub fn fit(left:i32,top:i32,right:i32,bottom:i32)->Option<Placement>{
 }
 // Main window has its own work-area-relative size. It is intentionally larger
 // than the splash on both axes, without requesting maximization.
+#[allow(dead_code)] // used by tests, proof examples and the Windows build; not called by the Linux bin
 pub fn fit_main(left:i32,top:i32,right:i32,bottom:i32)->Option<Placement>{
  let w=right.checked_sub(left)?;let h=bottom.checked_sub(top)?;
  if w<32||h<18{return None;}

@@ -1,10 +1,15 @@
 //! Deterministic actual Slint UI proof. No native windows, accounts or launch.
 use slint::{platform::{software_renderer::{MinimalSoftwareWindow,RepaintBufferType},Platform,WindowAdapter},ComponentHandle,Rgb8Pixel};
 use std::rc::Rc;
+#[allow(dead_code)]
 #[path="../src/startup.rs"]mod startup;
+#[allow(dead_code)]
 #[path="../src/startup_cover.rs"]mod startup_cover;
+#[allow(dead_code)]
 #[path="../src/startup_sheen.rs"]mod startup_sheen;
+#[allow(dead_code)]
 #[path="../src/startup_placement.rs"]mod startup_placement;
+#[allow(dead_code)]
 #[path="../src/startup_resize.rs"]mod startup_resize;
 slint::include_modules!();
 mod splash {slint::slint!{export {SplashWindow} from "../ui/startup.slint";}}

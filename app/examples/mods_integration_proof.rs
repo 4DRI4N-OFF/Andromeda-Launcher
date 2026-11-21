@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint inline-import emits a deprecated fallback const in this proof target; no behavior change
 //! Integration proof for the mod manager: the REAL UI handlers (the same
 //! wire_mods! expansion the app runs) against a TEMP instance on disk and the
 //! LIVE Modrinth API. Distinguishes "buttons dispatch" (mods_section_proof)
@@ -11,6 +12,7 @@ use std::sync::{Arc,Mutex,mpsc};
 use std::sync::atomic::{AtomicBool,Ordering};
 use std::time::{Duration,Instant};
 slint::slint! { import { MainWindow } from "../ui/main.slint"; }
+#[allow(dead_code)]
 #[path = "../src/mods_wire.rs"]
 mod mods_wire;
 // Minimal headless platform WITH an event loop: the real handlers post back
