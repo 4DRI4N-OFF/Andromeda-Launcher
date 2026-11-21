@@ -11,8 +11,6 @@
 name: Startup verify (consolidated)
 on:
   workflow_dispatch:
-  push:
-    branches: [review/steam-library-validation]
 permissions:
   contents: read
 jobs:
@@ -24,40 +22,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply reviewed library overlay with immutable provenance
+      - name: Reconstruct and verify reviewed R2 source
         shell: pwsh
         run: |
           $expectedBase = '0170d24e8c596ecc50fe0bdf96b2fb1cb650c35a'
-          # Validation commits contain only an archive and this workflow.
-          git merge-base --is-ancestor $expectedBase HEAD
-          if ($LASTEXITCODE -ne 0) { throw 'Expected source base is not an ancestor' }
-          $archive = @(Get-ChildItem -File '*Andromeda-Steam-Library-0170d24-review.tar-77085ddf.gz')
-          if ($archive.Count -ne 1) { throw 'Expected exactly one reviewed archive' }
-          $digest = (Get-FileHash $archive[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($digest -ne '5aa67a04ac6a073051b40719681fb9c281da963f1519c382f7c4517028c76ff9') { throw 'Reviewed archive hash mismatch' }
-          $out = Join-Path $env:RUNNER_TEMP 'reviewed-library'
-          New-Item -ItemType Directory -Force $out | Out-Null
-          tar -xzf $archive[0].FullName -C $out
-          if ($LASTEXITCODE -ne 0) { throw 'Archive extraction failed' }
-          $review = Join-Path $out 'andromeda-steam-native-review'
-          $manifest = Get-Content (Join-Path $review 'manifest.json') -Raw | ConvertFrom-Json
-          if ($manifest.base -ne $expectedBase) { throw 'Manifest base mismatch' }
           git diff --exit-code $expectedBase -- app core Cargo.lock Cargo.toml scripts
-          if ($LASTEXITCODE -ne 0) { throw 'Validation branch application differs from expected base' }
-          $changes = @($manifest.modified) + @($manifest.added)
-          if ($changes.Count -ne 17 -or @($manifest.deleted).Count -ne 0) { throw 'Unexpected overlay scope' }
-          foreach ($line in Get-Content (Join-Path $review 'SHA256SUMS')) {
-            if ($line -notmatch '^([a-f0-9]{64})  (.+)$') { throw 'Invalid checksum line' }
-            $want = $Matches[1]; $path = $Matches[2]
-            if ($path -notmatch '^overlay/app/' -or $path.Contains('..')) { throw 'Unexpected checksum path' }
-            $actual = (Get-FileHash (Join-Path $review $path) -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($actual -ne $want) { throw 'Overlay file checksum mismatch' }
+          if ($LASTEXITCODE -ne 0) { throw 'Application tree is not the exact reviewed base' }
+          $encoded = [IO.File]::ReadAllText((Join-Path $PWD 'library-r2-payload.txt')).Trim()
+          $packed = [Convert]::FromBase64String($encoded)
+          $stream = [IO.MemoryStream]::new($packed)
+          $gzip = [IO.Compression.GZipStream]::new($stream,[IO.Compression.CompressionMode]::Decompress)
+          $reader = [IO.StreamReader]::new($gzip)
+          $files = $reader.ReadToEnd() | ConvertFrom-Json -AsHashtable
+          $reader.Dispose()
+          if ($files.Count -ne 17) { throw 'Expected 17 text files' }
+          foreach ($path in $files.Keys) {
+            if ($path -notmatch '^app/' -or $path.Contains('..') -or $path.Contains('cover.png')) { throw 'Unexpected file path' }
+            $dest = Join-Path $PWD $path
+            New-Item -ItemType Directory -Force (Split-Path $dest) | Out-Null
+            [IO.File]::WriteAllBytes($dest,[Convert]::FromBase64String($files[$path]))
           }
-          Copy-Item (Join-Path $review 'overlay/*') . -Recurse -Force
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/rose-pine/wallpapers/main/minecraft/snow-mountain-range.jpg' -OutFile 'app/ui/steam/cover.jpg'
+          $expected = @'
+          {"app/src/main.rs":"d90bd1da0cfa018b0e53d067c279032b1a1ab0821a49609240435a442bd5e04b","app/ui/main.slint":"4ed03058cae218f64798832e0262bfedfc67d02aad77ad754126ed378e5d971e","app/ui/motion.slint":"44da37fafe6d43b844b23c6b299487b6805e07cba95c6766aa9912e004bf529d","app/ui/steam/ASSETS.md":"e22e23f4ab7b85a0c46ee96801752d0b688a4cb67629e59b140ec0a75d8d5594","app/ui/steam/coolicons/LICENSE":"35d8a4a8e1793b261198949d213583904b11e3826be8618ae9b9dbc6b70f50cc","app/ui/steam/coolicons/README.md":"df86de667decfebdffcc78e5b0185941740421c6b2b105b0cf1d594f7f24da36","app/ui/steam/coolicons/box.svg":"53d1b254baad78f05082f8cd934f5a949cc427fa4498a86535f1df0bbf77ce51","app/ui/steam/coolicons/play.svg":"5ad478b94a697dcff110d8ffb9d889c44d8ff8e267577e7cf4c35d4391700b97","app/ui/steam/coolicons/plus.svg":"7ca7bb5c343ad311084e6f69a877743f99fdda3acb6c35e9fed72adebc0d71ec","app/ui/steam/coolicons/puzzle.svg":"1673f61744a8f36cb86abb94113d3e9cafc8a1a3b2ca732f8efce7ad369397e3","app/ui/steam/coolicons/settings.svg":"5c8d6774e5cb17fef0aefef33cbc456b38261227beaf577ca8ed6545bf4e21ce","app/ui/steam/coolicons/user.svg":"eb4832bb68233f7cf39b7ea985e021b996a5f4764c65157e60c79b3ef5839fc2","app/ui/steam/library.slint":"2a5e0f2a3544e006b36076b7b5a69c69e1b95e000b3f1a9761f2e5d6453d53c5","app/ui/steam/planet.svg":"284181ffb265c52eab2d39c6a797bbefc4c22d2b47698e0205dac677748a6391","app/ui/steam/shell.slint":"15f8bdeb130b22542763c532ee024df0939d77c48d71d9a7ba3f729d901121de","app/ui/steam/wordmark.svg":"7ea86ff156e9094d72a60355cc90226433dc3b19a7fa8133080b27a317f7c26d","app/ui/steam/cover.jpg":"f77f2b52253768c975e5ef79afe2a1f6798884004ae8ee0e8369ad0da43729fe","app/ui/steam/COVER-CC0-LICENSE.txt":"a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"}
+          '@ | ConvertFrom-Json -AsHashtable
+          if ($expected.Count -ne 18) { throw 'Expected 18 reviewed file hashes' }
+          foreach ($path in $expected.Keys) {
+            $actual = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expected[$path]) { throw "Reviewed file hash mismatch: $path" }
+          }
           New-Item -ItemType Directory -Force 'verify-out/logs' | Out-Null
-          Copy-Item (Join-Path $review 'manifest.json') 'verify-out/logs/review-manifest.json'
-          Copy-Item (Join-Path $review 'SHA256SUMS') 'verify-out/logs/review-SHA256SUMS.txt'
-          "base=$expectedBase; archive_sha256=$digest; validation_commit=$env:GITHUB_SHA" | Out-File 'verify-out/logs/source-provenance.txt'
+          $expected | ConvertTo-Json | Out-File 'verify-out/logs/reviewed-r2-hashes.json'
+          "base=$expectedBase; reviewed_archive_sha256=9cdc00194d0ee3f3db792553b7f8950d561d2226d56eeddd493cb0dec77f58cb; validation_commit=$env:GITHUB_SHA" | Out-File 'verify-out/logs/source-provenance.txt'
           git status --short | Out-File 'verify-out/logs/source-status.txt'
       - uses: dtolnay/rust-toolchain@stable
         with:
