@@ -283,50 +283,6 @@ component ProfileRow inherits Rectangle {
     }
 }
 
-component HomeCard inherits Rectangle {
-    in property <float> scale: 1;
-    in property <string> title;
-    in property <string> detail;
-    in property <int> index;
-    in property <bool> selected;
-    in property <bool> busy;
-    callback select;
-    callback play;
-    width: 367px * scale; height: 610px * scale;
-    Image { width: 100%; height: 100%; image-fit: fill;
-        source: ThemePalette.background-style == "dawn" ? @image-url("shell/card-alba.svg") : ThemePalette.background-style == "constellation" ? @image-url("shell/card-cartografo.svg") : @image-url("shell/card-horizonte.svg");
-    }
-    Rectangle { width: 100%; height: 100%; border-radius: 27px * root.scale; border-width: root.selected ? 1.5px : 0px; border-color: ThemePalette.accent.with-alpha(0.65); background: transparent; }
-    Image { x: 28px * root.scale; y: 28px * root.scale; width: 64px * root.scale; height: 64px * root.scale; image-fit: contain;
-        source: mod(root.index,4) == 0 ? @image-url("shell/profile-0.svg") : mod(root.index,4) == 1 ? @image-url("shell/profile-1.svg") : mod(root.index,4) == 2 ? @image-url("shell/profile-2.svg") : @image-url("shell/profile-3.svg");
-    }
-    Text { x: 28px * root.scale; y: 112px * root.scale; width: parent.width - 56px * root.scale; text: root.title; overflow: elide; font-family: ThemePalette.display-font; font-size: 22px * root.scale; font-weight: 800; color: ThemePalette.text-color; }
-    Text { x: 28px * root.scale; y: 144px * root.scale; width: parent.width - 56px * root.scale; text: root.detail; overflow: elide; font-family: ThemePalette.body-font; font-size: 12px * root.scale; color: ThemePalette.muted; }
-    Text { visible: root.height >= 450px * root.scale; x: 28px * root.scale; y: 182px * root.scale; text: "THIS WEEK"; font-family: ThemePalette.body-font; font-size: 10px * root.scale; font-weight: 700; letter-spacing: 2px; color: ThemePalette.muted.with-alpha(0.65); }
-    Rectangle { visible: root.height >= 450px * root.scale; x: 28px * root.scale; y: 210px * root.scale; width: parent.width - 56px * root.scale; height: 66px * root.scale;
-        Text { width: 100%; height: 100%; text: "Activity not recorded"; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 12px * root.scale; color: ThemePalette.muted.with-alpha(0.55); }
-    }
-    Text { x: 28px * root.scale; y: parent.height - 148px * root.scale; text: "Play time not recorded"; font-family: ThemePalette.body-font; font-size: 14px * root.scale; color: ThemePalette.text-color; }
-    Text { x: 28px * root.scale; y: parent.height - 122px * root.scale; text: "Last session: not recorded"; font-family: ThemePalette.body-font; font-size: 13px * root.scale; color: ThemePalette.muted; }
-    TouchArea { mouse-cursor: pointer; clicked => { root.select(); } }
-    if root.selected : Rectangle {
-        x: 28px * root.scale; y: parent.height - 84px * root.scale; width: parent.width - 56px * root.scale; height: 58px * root.scale;
-        border-radius: 17px * root.scale; background: ThemePalette.accent;
-        Image { width: 100%; height: 100%; image-fit: fill; source: ThemePalette.background-style == "dawn" ? @image-url("shell/play-alba.svg") : ThemePalette.background-style == "constellation" ? @image-url("shell/play-cartografo.svg") : @image-url("shell/play-horizonte.svg"); }
-        press := SpringValue { target: hit.pressed && !root.busy ? 1 : 0; }
-        Text { x: (root.busy ? 0px : 12px * root.scale) + press.value * 2px; width: parent.width; height: parent.height; horizontal-alignment: center; vertical-alignment: center; text: root.busy ? "WORKING..." : "PLAY"; font-family: ThemePalette.body-font; font-size: 17px * root.scale; font-weight: 800; letter-spacing: 3px; color: ThemePalette.on-accent; }
-        Image { visible: !root.busy; x: parent.width / 2 - 57px * root.scale + press.value * 2px; y: (parent.height - self.height) / 2; width: 18px * root.scale; height: self.width; source: @image-url("tabler/player-play.svg"); colorize: ThemePalette.on-accent; }
-        hit := TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.play(); } } }
-    }
-    if !root.selected : Rectangle {
-        x: 28px * root.scale; y: parent.height - 76px * root.scale; width: parent.width - 56px * root.scale; height: 42px * root.scale;
-        Rectangle { x: 0px; y: 0px; width: 42px * root.scale; height: self.width; border-radius: self.width / 2; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel-light;
-            Image { x: 14px * root.scale; y: 14px * root.scale; width: 14px * root.scale; height: 14px * root.scale; source: @image-url("tabler/player-play.svg"); colorize: ThemePalette.muted; }
-        }
-        Text { x: 52px * root.scale; height: parent.height; vertical-alignment: center; text: "Play"; font-family: ThemePalette.body-font; font-size: 14px * root.scale; color: ThemePalette.muted; }
-        TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.select(); root.play(); } } }
-    }
-}
 component GlassPanel inherits Rectangle {
     border-radius: 27px; border-width: 1px; border-color: ThemePalette.border;
     background: ThemePalette.panel; clip: true;
@@ -375,6 +331,7 @@ component ThemeRow inherits Rectangle {
 // Native Home prototype. Keeps MainWindow bindings and callbacks intact.
 component ReworkHome inherits Rectangle {
     in property <bool> reference-skin: true;
+    in property <bool> proof-mode: false;
     in property <string> theme-label: "HORIZONTE";
     in property <[string]> names;
     in property <[string]> titles;
@@ -395,11 +352,13 @@ component ReworkHome inherits Rectangle {
     property <length> tile-height: small ? 79px : 85px;
     property <length> new-width: small ? 84px : 156px;
     property <length> hero-height: self.height - tile-height - (small?82px:95px);
-    property <string> chosen-title: selected >= 0 && selected < titles.length ? titles[selected] : "Choose an instance";
-    property <bool> structured-detail: selected >= 0 && selected < versions.length && selected < loaders.length;
+    property <bool> has-selection: selected >= 0 && selected < names.length;
+    property <string> chosen-title: !has-selection ? "Choose an instance" : selected < titles.length ? titles[selected] : names[selected];
+    property <bool> structured-detail: has-selection && selected < versions.length && selected < loaders.length;
     property <string> chosen-version: structured-detail ? versions[selected] : "";
     property <string> chosen-loader: structured-detail ? loaders[selected] : "";
-    property <string> chosen-detail: selected >= 0 && selected < details.length ? details[selected] : "Your library is ready for a new instance";
+    // Detail only wraps real adapter data; a misaligned or empty model never gets a fake version line.
+    property <string> chosen-detail: !has-selection ? "Your library is ready for a new instance" : selected < details.length ? "Minecraft " + details[selected] + " · Java Edition" : names[selected];
     hero := Rectangle {
         x:0px;y:0px;width: 100%; height: root.hero-height;
         border-radius: 28px; clip: true;
@@ -414,7 +373,7 @@ component ReworkHome inherits Rectangle {
             Rectangle {x:0px;y:root.small?11.5px:1.5px;width:5px;height:5px;border-radius:2.5px;background:#c6a2fd;drop-shadow-color:#c6a2fd60;drop-shadow-blur:10px;}
             Text {x:14px;y:root.small?8px:-2px;text:"SELECTED INSTANCE";font-family:ThemePalette.body-font;font-size:10px;font-weight:600;letter-spacing:2px;color:#c1b3d7;}
             Text {x:0px;y:root.small?34px:24px;width:100%;height:66px;text:root.chosen-title;overflow:elide;font-family:ThemePalette.display-font;font-size:root.small?42px:51px;font-weight:570;letter-spacing:-2px;color:#f8f6ff;}
-            if !root.structured-detail : Text {x:0px;y:100px;width:100%;text:root.names.length > 0 ? "Minecraft " + root.chosen-detail + " · Java Edition" : root.chosen-detail;overflow:elide;font-family:ThemePalette.body-font;font-size:13px;color:#c7c0d3;}
+            if !root.structured-detail : Text {x:0px;y:100px;width:100%;text:root.chosen-detail;overflow:elide;font-family:ThemePalette.body-font;font-size:13px;color:#c7c0d3;}
             if root.structured-detail : Rectangle {x:0px;y:98px;width:100%;height:20px;clip:true;
                 HorizontalLayout {alignment:start;spacing:11px;
                     Text {text:"Minecraft " + root.chosen-version;vertical-alignment:center;font-family:ThemePalette.body-font;font-size:13px;color:#c7c0d3;}
@@ -465,7 +424,7 @@ component ReworkHome inherits Rectangle {
         TouchArea {x:0px;y:0px;width:100%;height:100%;mouse-cursor:root.busy?default:pointer;clicked=>{if !root.busy {root.new-instance();}}}
     }
     Text {x:2px;y:parent.height - (root.small?11px:16px);text:"ANDROMEDA  /  " + root.theme-label;font-family:ThemePalette.body-font;font-size:root.small?8px:9px;letter-spacing:0.8px;color:#766d83;}
-    Text {x:0px;y:parent.height - 14px;width:100%;text:"Native UI proof · Test data";horizontal-alignment:right;font-family:ThemePalette.body-font;font-size:9px;color:#968aa5;}
+    Text {visible:root.proof-mode;x:0px;y:parent.height - 14px;width:100%;text:"Native UI proof · Test data";horizontal-alignment:right;font-family:ThemePalette.body-font;font-size:9px;color:#968aa5;}
 }
 
 export component MainWindow inherits Window {
@@ -495,6 +454,8 @@ export component MainWindow inherits Window {
     in property <[string]> profile-versions;
     in property <[string]> profile-loaders;
     in property <[string]> profile-initials;
+    // Proof harnesses set this to keep the prototype marker; normal UI never shows it.
+    in property <bool> ui-proof-mode: false;
     in property <[string]> instance-names: ["Default profile (phase 2)"];
     in-out property <int> instance-index: 0;
     in-out property <string> instance-name: "New instance";
@@ -618,6 +579,7 @@ Rectangle {
 }
 
         if root.active-tab == 0 : ReworkHome {
+            proof-mode:root.ui-proof-mode;
             x:root.width<1000px?24px:36px; y:root.width<1000px?80px:92px;
             width:parent.width - 2*self.x; height:parent.height - self.y - 52px;
             reference-skin:root.selected-theme == "horizonte";
