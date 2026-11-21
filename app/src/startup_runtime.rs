@@ -195,10 +195,13 @@ impl Runtime {
                 }
             };
             let (writer, guard) = tracing_appender::non_blocking(appender);
-            let _ = tracing_subscriber::fmt()
+            if let Err(error) = tracing_subscriber::fmt()
                 .with_writer(writer)
                 .with_ansi(false)
-                .try_init();
+                .try_init()
+            {
+                eprintln!("Launcher logging initialization failed: {error}");
+            }
             self.log_guard = Some(guard);
         }
         let root = self.dir.clone();
