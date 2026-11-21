@@ -1,7 +1,13 @@
-# REVIEW-ONLY workflow draft v2. Lives only on review/home-ui-c9ebfd4, never merged.
+# REVIEW-ONLY workflow draft v3. Lives only on review/home-ui-c9ebfd4, never merged.
 # Visual + renderer evidence for the isolated Home/header rework on real Windows.
 # No real accounts, no user data, no PC access: the exe runs with throwaway
 # HOME/APPDATA on the runner and is killed after capture.
+# v3 fixes: artifacts previously uploaded ZERO files because the upload step used
+# ${{ env.RUNNER_TEMP }}, which is NOT defined in the GitHub `env` expression
+# context (RUNNER_TEMP only exists as $env:RUNNER_TEMP inside pwsh), so the path
+# resolved to literal /caps and /logs. Outputs now live under the workspace in
+# review-out/ and upload uses a plain relative path, if: always(), and
+# if-no-files-found: error so a missing artifact fails the job.
 # Caveats: a requested SLINT_BACKEND is NOT proof of the effective renderer;
 # the probe step collects logs/GPU info as evidence. CopyFromScreen may yield a
 # black frame in a non-interactive session; captures are validated below and a
@@ -9,10 +15,11 @@
 name: Home review (visual)
 on:
   workflow_dispatch:
-  # Temporary: dispatch requires the file on the default branch; push trigger
-  # scoped to this review branch only. Remove before any merge consideration.
+  # TEMPORARY push trigger, only so the workflow can run before existing on the
+  # default branch. MUST be removed before any integration of this branch.
   push:
-    branches: [review/home-ui-c9ebfd4]
+    branches:
+      - review/home-ui-c9ebfd4
 permissions:
   contents: read
 jobs:
@@ -27,8 +34,8 @@ jobs:
       - name: Capture default / femtovg / software at 100% and 125%
         shell: pwsh
         run: |
-          $cap = "$env:RUNNER_TEMP/caps"; New-Item -ItemType Directory -Force $cap | Out-Null
-          $logs = "$env:RUNNER_TEMP/logs"; New-Item -ItemType Directory -Force $logs | Out-Null
+          $cap = "review-out/caps"; New-Item -ItemType Directory -Force $cap | Out-Null
+          $logs = "review-out/logs"; New-Item -ItemType Directory -Force $logs | Out-Null
           Add-Type -AssemblyName System.Drawing
           foreach ($backend in @('default', 'winit-femtovg', 'winit-software')) {
             foreach ($scale in @('1.0', '1.25')) {
@@ -50,6 +57,7 @@ jobs:
                 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
                 Write-Error "no real window detected for backend=$backend scale=$scale; capture would be an empty desktop"; exit 1
               }
+              $title = $p.MainWindowTitle
               $b = New-Object System.Drawing.Bitmap 1920, 1080
               $g = [System.Drawing.Graphics]::FromImage($b)
               $g.CopyFromScreen(0, 0, 0, 0, $b.Size)
@@ -62,29 +70,28 @@ jobs:
               $g.Dispose(); $b.Dispose()
               Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
               if ($lit -eq 0) { Write-Error "capture home-$tag.png is uniformly dark (session likely non-interactive); not valid evidence"; exit 1 }
-              Write-Host "capture $tag ok ($lit/$samples lit samples, window '$($p.MainWindowTitle)')"
+              Write-Host "capture $tag ok ($lit/$samples lit samples, window '$title')"
             }
           }
       - name: Probe effective renderer evidence (default env, fresh process)
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force "review-out/logs" | Out-Null
           # Fresh env: explicitly NO SLINT_BACKEND/SLINT_SCALE_FACTOR inherited from the loop.
           Remove-Item Env:SLINT_BACKEND -ErrorAction SilentlyContinue
           Remove-Item Env:SLINT_SCALE_FACTOR -ErrorAction SilentlyContinue
           $env:RUST_LOG = "info"; $env:SLINT_LOGGING = "info"
           $env:HOME = "$env:RUNNER_TEMP/fakehome"; $env:APPDATA = "$env:RUNNER_TEMP/fakeappdata"
           $p = Start-Process -FilePath "target/release/andromeda.exe" -PassThru `
-               -RedirectStandardOutput "$env:RUNNER_TEMP/logs/out-probe.log" -RedirectStandardError "$env:RUNNER_TEMP/logs/err-probe.log"
+               -RedirectStandardOutput "review-out/logs/out-probe.log" -RedirectStandardError "review-out/logs/err-probe.log"
           Start-Sleep -Seconds 12
           if ($p.HasExited) { Write-Host "probe exited on its own, code $($p.ExitCode)" } else { Stop-Process -Id $p.Id -Force }
-          # GPU/driver context for the renderer discussion.
-          Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion | Format-Table -AutoSize | Out-String | Write-Host
-          # Logs are uploaded whole with the artifacts; no console excerpts treated as evidence.
+          # GPU/driver context for the renderer discussion; full logs are uploaded as artifacts.
+          Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion | Format-Table -AutoSize | Out-String | Out-File "review-out/logs/gpu.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: home-review-captures
-          path: |
-            ${{ env.RUNNER_TEMP }}/caps
-            ${{ env.RUNNER_TEMP }}/logs
+          path: review-out
+          if-no-files-found: error
           retention-days: 7
