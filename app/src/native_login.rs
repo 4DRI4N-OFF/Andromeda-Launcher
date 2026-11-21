@@ -4,6 +4,14 @@ use andromeda_core::auth::{AuthError, Session};
 use std::sync::atomic::AtomicBool;
 #[cfg(target_os = "windows")]
 pub fn sign_in(cancel: &AtomicBool) -> Result<Session, AuthError> {
+    use andromeda_core::{
+        auth::Http,
+        pkce::{allowed_navigation, Callback, Pending},
+    };
+    use std::{
+        sync::{atomic::Ordering, Arc, Mutex},
+        time::{Duration, Instant},
+    };
     use tao::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoopBuilder},

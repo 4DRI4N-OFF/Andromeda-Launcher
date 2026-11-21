@@ -4,7 +4,7 @@
 )]
 // Tabler MIT notice is retained in executable distributions.
 #[used]
-static TABLER_LICENSE: [u8; 1073] = *include_bytes!("../ui/tabler/LICENSE");
+static TABLER_LICENSE: &[u8] = include_bytes!("../ui/tabler/LICENSE");
 
 mod mods_wire;
 mod motion_ui;
