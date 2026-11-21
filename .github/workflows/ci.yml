@@ -17,3 +17,17 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo build --workspace --locked
+      - run: cargo build --release -p andromeda-app --locked
+      - name: Smoke-run the packaged exe (non-interactive session)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "target/release/andromeda.exe" -PassThru
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) { Write-Error "andromeda.exe exited early (code $($p.ExitCode))"; exit 1 }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "andromeda.exe stayed alive 15s without an early crash"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: andromeda-windows-x86_64
+          path: target/release/andromeda.exe
+          retention-days: 14
