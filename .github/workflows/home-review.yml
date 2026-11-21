@@ -9,6 +9,10 @@
 name: Home review (visual)
 on:
   workflow_dispatch:
+  # Temporary: dispatch requires the file on the default branch; push trigger
+  # scoped to this review branch only. Remove before any merge consideration.
+  push:
+    branches: [review/home-ui-c9ebfd4]
 permissions:
   contents: read
 jobs:
