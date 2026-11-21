@@ -20,6 +20,25 @@ mod ui {
     slint::slint! {import {SplashWindow} from "../ui/startup.slint";}
 }
 thread_local! {static ACTIVE:RefCell<Option<Rc<RefCell<Runtime>>>>=const {RefCell::new(None)};}
+/// Whether this run can confirm the main window's first frame. `Unavailable`
+/// only when the renderer reports no notifier support; never a fake confirmed
+/// frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FrameVerification {
+    Supported,
+    Unavailable,
+}
+/// Classifies the notifier registration result: only `Unsupported` degrades
+/// to `Unavailable`; every other error stays fatal.
+fn classify_notifier(
+    res: Result<(), slint::SetRenderingNotifierError>,
+) -> Result<FrameVerification, slint::SetRenderingNotifierError> {
+    match res {
+        Ok(()) => Ok(FrameVerification::Supported),
+        Err(slint::SetRenderingNotifierError::Unsupported) => Ok(FrameVerification::Unavailable),
+        Err(e) => Err(e),
+    }
+}
 struct Runtime {
     log_guard: Option<tracing_appender::non_blocking::WorkerGuard>,
     splash: ui::SplashWindow,
@@ -28,6 +47,7 @@ struct Runtime {
     dir: PathBuf,
     cancel: Arc<AtomicBool>,
     rendered: Arc<AtomicBool>,
+    main_frame_verification: FrameVerification,
     timer: slint::Timer,
     started: Instant,
     intro_start: Option<Instant>,
@@ -69,6 +89,7 @@ pub fn run(dir: PathBuf) -> Result<(), slint::PlatformError> {
         dir,
         cancel: Arc::new(AtomicBool::new(false)),
         rendered: Arc::new(AtomicBool::new(false)),
+        main_frame_verification: FrameVerification::Supported,
         timer: slint::Timer::default(),
         started: Instant::now(),
         intro_start: None,
@@ -88,6 +109,7 @@ pub fn run(dir: PathBuf) -> Result<(), slint::PlatformError> {
             with_active(|r| {
                 if r.gate.retry().is_some() {
                     r.cancel = Arc::new(AtomicBool::new(false));
+                    r.main_frame_verification = FrameVerification::Supported;
                     r.splash.set_failure("".into());
                     r.started = Instant::now();
                     r.resize = None;
@@ -197,7 +219,13 @@ impl Runtime {
       match crate::prepare_main(r.dir.clone(),data){
        Ok(main)=>{
         let flag=r.rendered.clone();
-        if let Err(e)=main.ui.window().set_rendering_notifier(move |state,_|{if matches!(state,slint::RenderingState::AfterRendering){flag.store(true,Ordering::Release);}}){main.auth_cancel.store(true,Ordering::Relaxed);r.fail(format!("No se pudo verificar el primer fotograma: {e:?}"));return;}
+        match classify_notifier(main.ui.window().set_rendering_notifier(move |state,_|{if matches!(state,slint::RenderingState::AfterRendering){flag.store(true,Ordering::Release);}})) {
+         Ok(v)=>{
+          if v==FrameVerification::Unavailable {tracing::warn!("first-frame verification unavailable: this renderer does not support rendering notifiers; continuing without confirmation");}
+          r.main_frame_verification=v;
+         },
+         Err(e)=>{main.auth_cancel.store(true,Ordering::Relaxed);r.fail(format!("No se pudo verificar el primer fotograma: {e:?}"));return;},
+        }
         main.ui.set_startup_glyphs(slint::ModelRc::new(slint::VecModel::from(startup::frame(2.1).glyphs.iter().map(|g|crate::StartupGlyph{visible:g.visible,x:g.x as f32,y:g.y as f32,sx:g.sx as f32,sy:g.sy as f32}).collect::<Vec<_>>())));
         r.main=Some(main);r.gate.accept(attempt,Event::MainPrepared);
         if r.gate.stage()==Stage::Intro {r.intro_start=Some(Instant::now()+Duration::from_millis(300));}else{r.show_main();}
@@ -373,6 +401,20 @@ impl Runtime {
                 }
             }
             Stage::AwaitingMainFrame => {
+                if self.main_frame_verification == FrameVerification::Unavailable {
+                    // No notifier on this renderer: the startup overlay still covers
+                    // the main window, so the handoff can proceed without a confirmed
+                    // first frame. Nothing here marks the frame as confirmed.
+                    self.gate.accept(attempt, Event::MainFirstFrameUnverifiable);
+                    let _ = self.splash.hide();
+                    self.handoff_start = Some(Instant::now());
+                    if self.gate.stage() == Stage::Ready {
+                        if let Some(m) = &self.main {
+                            m.ui.set_startup_overlay(false);
+                        }
+                    }
+                    return;
+                }
                 if self
                     .waiting_since
                     .is_some_and(|t| t.elapsed() > Duration::from_secs(8))
@@ -453,5 +495,30 @@ impl Runtime {
             }
             _ => {}
         }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn unsupported_notifier_degrades_to_unavailable() {
+        assert!(matches!(
+            classify_notifier(Err(slint::SetRenderingNotifierError::Unsupported)),
+            Ok(FrameVerification::Unavailable)
+        ));
+    }
+    #[test]
+    fn registered_notifier_stays_supported() {
+        assert!(matches!(
+            classify_notifier(Ok(())),
+            Ok(FrameVerification::Supported)
+        ));
+    }
+    #[test]
+    fn other_notifier_errors_stay_fatal() {
+        assert!(matches!(
+            classify_notifier(Err(slint::SetRenderingNotifierError::AlreadySet)),
+            Err(slint::SetRenderingNotifierError::AlreadySet)
+        ));
     }
 }
