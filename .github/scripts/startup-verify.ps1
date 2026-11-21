@@ -7,9 +7,9 @@
 #   sequence is coarse evidence of the transition, not a tick-level check. Fine
 #   transition smoothness stays PENDING real-device validation; we do not claim
 #   a perfect transition from this run.
-# - On the runner Home is the EMPTY state (throwaway data dir: no instances,
-#   no accounts); we do not claim a populated catalog.
-# - The app log's warn line is recorded through tracing_appender (reliable);
+# - Fresh data can generate a default profile and list versions; no real
+#   user accounts or instances are used, and interaction is not tested.
+# - App log contents are checked, never inferred from a missing warn line;
 #   Slint/GL stderr logs are NOT guaranteed and are not asserted.
 # Attribution: the workflow preserves and removes the smoke run's logs before
 # this script runs, so data/logs here belongs ONLY to this visual execution.
@@ -63,7 +63,6 @@ Add-Type -TypeDefinition $sig
 Remove-Item Env:SLINT_BACKEND -ErrorAction SilentlyContinue
 Remove-Item Env:SLINT_SCALE_FACTOR -ErrorAction SilentlyContinue
 $env:HOME = "$env:RUNNER_TEMP/fakehome"; $env:APPDATA = "$env:RUNNER_TEMP/fakeappdata"
-$env:RUST_LOG = "info"; $env:SLINT_LOGGING = "info"
 $exe = Join-Path $PWD "target/release/andromeda.exe"
 $p = Start-Process -FilePath $exe -PassThru `
      -RedirectStandardOutput "$logs/out-visual.log" -RedirectStandardError "$logs/err-visual.log"
@@ -141,7 +140,16 @@ if ($homeReached) {
     }
   }
 }
-Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+# Normal close gets five seconds before forced cleanup. This is process hygiene,
+# not a fix for the unexplained empty log: the appender drains continuously.
+# A closed main window with a live process remains a separate product finding.
+$p.Refresh()
+if (-not $p.HasExited) {
+  $closeRequested = $p.CloseMainWindow()
+  $exitedNormally = $p.WaitForExit(5000)
+  "close_requested=$closeRequested; exited_within_5s=$exitedNormally" | Out-File "$logs/close-status.txt"
+  if (-not $exitedNormally) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+}
 # Per-execution app diagnostics. data_dir is compile-time (main.rs data_dir():
 # CARGO_MANIFEST_DIR.parent()/data with no .andromeda-test marker), so on the
 # runner it is deterministically $GITHUB_WORKSPACE/data/logs. The workflow
@@ -152,17 +160,19 @@ $appLogs = @()
 if (Test-Path $appLogDir) { $appLogs = @(Get-ChildItem -Path $appLogDir -Filter "andromeda.log.*" -File -ErrorAction SilentlyContinue) }
 if ($appLogs.Count -eq 0) { Write-Error "no $appLogDir/andromeda.log.* produced by the visual run; diagnostics missing"; exit 1 }
 New-Item -ItemType Directory -Force "$logs/app" | Out-Null
+# Preserve every file, including empty files, before enforcing the same guard.
+foreach ($f in $appLogs) { Copy-Item $f.FullName "$logs/app/" -Force }
+$appLogs | Select-Object Name, Length, LastWriteTimeUtc | ConvertTo-Json -AsArray | Out-File "$logs/app-log-manifest.json"
 foreach ($f in $appLogs) {
-  if ($f.Length -eq 0) { Write-Error "app log $($f.Name) is empty; diagnostics missing"; exit 1 }
-  Copy-Item $f.FullName "$logs/app/" -Force
+  if ($f.Length -eq 0) { Write-Error "app log $($f.Name) is empty; diagnostics missing (empty file preserved)"; exit 1 }
 }
 Write-Host "app logs preserved: $($appLogs.Count) file(s) from $appLogDir"
 # Which first-frame path did THIS run take? On the runner's software renderer
 # the repair degrades explicitly; the warn line in THIS run's log is the proof.
-# Absence means the renderer supports the notifier (verified path).
+# Absence does not by itself prove notifier support or an error-free run.
 $degraded = Select-String -Path "$logs/app/*" -Pattern "first-frame verification unavailable" -SimpleMatch -Quiet
 if ($degraded) { Write-Host "degraded path taken (renderer lacks rendering notifier): explicit unverified-frame continuation" }
-else { Write-Host "degraded line absent in this run's log: renderer supports the notifier (verified path); see app logs" }
+else { Write-Host "degraded line absent in this run's log: first-frame path not established by this diagnostic; see app logs" }
 if (-not $homeReached) { Write-Error "main window 'Andromeda Launcher' never appeared within 240s; final titles in windows-final.txt, sequence in caps/seq/, desktop-final.png"; exit 1 }
 if (-not $windowOk) { Write-Error "main window title seen but its rectangle capture was black or unavailable; desktop-final.png kept as diagnostic only"; exit 1 }
-Write-Host "HOME REACHED: main window 'Andromeda Launcher' rendered (non-black pixels inside its own rect; empty state, catalog population not claimed)"
+Write-Host "HOME REACHED: main window 'Andromeda Launcher' rendered (non-black pixels inside its own rect; final state requires visual inspection; interaction not claimed)"
