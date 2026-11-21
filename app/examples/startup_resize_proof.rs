@@ -1,3 +1,4 @@
+#![allow(deprecated)] // slint 1.19 macro edition notice; dev proofs keep prior language behavior
 //! Deterministic actual Slint UI proof. No native windows, accounts or launch.
 use slint::{
     platform::{

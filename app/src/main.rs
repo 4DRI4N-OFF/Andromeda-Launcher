@@ -5,6 +5,9 @@
 // Tabler MIT notice is retained in executable distributions.
 #[used]
 static TABLER_LICENSE: &[u8] = include_bytes!("../ui/tabler/LICENSE");
+// Coolicons notice for the isolated Home/header rework.
+#[used]
+static COOLICONS_LICENSE: &[u8] = include_bytes!("../ui/coolicons/LICENSE");
 
 mod mods_wire;
 mod motion_ui;
@@ -64,7 +67,19 @@ fn refresh_instances(
     }));
     let mut titles: Vec<slint::SharedString> = vec!["Default profile".into()];
     let mut details: Vec<slint::SharedString> = vec!["1.21.11 · Vanilla".into()];
+    let mut versions: Vec<slint::SharedString> = vec!["1.21.11".into()];
+    let mut loaders: Vec<slint::SharedString> = vec!["Vanilla".into()];
+    let mut initials: Vec<slint::SharedString> = vec!["D".into()];
     for item in &items {
+        versions.push(item.version.clone().into());
+        initials.push(
+            item.name
+                .chars()
+                .next()
+                .map(|c| c.to_uppercase().collect::<String>())
+                .unwrap_or_else(|| "?".into())
+                .into(),
+        );
         titles.push(item.name.clone().into());
         let loader = match &item.loader {
             Some(andromeda_core::instances::Loader::Fabric { version }) => {
@@ -94,7 +109,11 @@ fn refresh_instances(
             None => "Vanilla".into(),
         };
         details.push(format!("{} · {}", item.version, loader).into());
+        loaders.push(loader.into());
     }
+    ui.set_profile_initials(slint::ModelRc::new(slint::VecModel::from(initials)));
+    ui.set_profile_versions(slint::ModelRc::new(slint::VecModel::from(versions)));
+    ui.set_profile_loaders(slint::ModelRc::new(slint::VecModel::from(loaders)));
     ui.set_profile_titles(slint::ModelRc::new(slint::VecModel::from(titles)));
     ui.set_profile_details(slint::ModelRc::new(slint::VecModel::from(details)));
     *shared.lock().expect("instance state") = items;
