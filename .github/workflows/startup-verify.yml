@@ -11,6 +11,8 @@
 name: Startup verify (consolidated)
 on:
   workflow_dispatch:
+  push:
+    branches: [review/steam-library-validation]
 permissions:
   contents: read
 jobs:
