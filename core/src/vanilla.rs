@@ -86,6 +86,12 @@ impl Downloader {
         })
     }
     pub fn json(&self, url: &str) -> Result<Value> {
+        Ok(serde_json::from_str(&self.text(url)?)?)
+    }
+    pub fn text(&self, url: &str) -> Result<String> {
+        if !url.starts_with("https://") {
+            return Err("Catalog URL must use HTTPS".into());
+        }
         let mut last = None;
         for attempt in 0..3 {
             match self
@@ -93,7 +99,7 @@ impl Downloader {
                 .get(url)
                 .send()
                 .and_then(|r| r.error_for_status())
-                .and_then(|r| r.json())
+                .and_then(|r| r.text())
             {
                 Ok(v) => return Ok(v),
                 Err(e) => last = Some(e),
@@ -304,13 +310,13 @@ pub(crate) fn allowed(lib: &Value) -> bool {
 mod tests {
     use super::*;
     fn dir() -> PathBuf {
+        // Unique per test even on coarse-granularity clocks: parallel tests
+        // in the same process must never share (and delete) a fixture dir.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let p = std::env::temp_dir().join(format!(
             "andromeda-download-{}-{}",
             std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         fs::create_dir_all(&p).unwrap();
         p

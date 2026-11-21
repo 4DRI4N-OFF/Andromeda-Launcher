@@ -4,26 +4,23 @@
 )]
 // Tabler MIT notice is retained in executable distributions.
 #[used]
-static TABLER_LICENSE: [u8; 1073] = *include_bytes!("../ui/tabler/LICENSE");
+static TABLER_LICENSE: &[u8] = include_bytes!("../ui/tabler/LICENSE");
 
-
-mod startup;
-mod startup_gate;
-mod startup_data;
-mod startup_cover;
-mod startup_runtime;
-mod startup_placement;
-mod startup_resize;
-mod startup_sheen;
+mod mods_wire;
 mod motion_ui;
 mod native_login;
+mod startup;
+mod startup_cover;
+mod startup_data;
+mod startup_gate;
+mod startup_placement;
+mod startup_resize;
+mod startup_runtime;
+mod startup_sheen;
 mod theme_ui;
 use andromeda_core::settings::Settings;
 use slint::ComponentHandle;
-use std::{
-    path::PathBuf,
-    rc::Rc,
-};
+use std::{path::PathBuf, rc::Rc};
 slint::include_modules!();
 
 fn data_dir() -> PathBuf {
@@ -56,6 +53,10 @@ fn refresh_instances(
                 Some(andromeda_core::instances::Loader::Quilt { .. }) => "Quilt",
                 Some(andromeda_core::instances::Loader::Forge { .. }) => "Forge",
                 Some(andromeda_core::instances::Loader::NeoForge { .. }) => "NeoForge",
+                Some(andromeda_core::instances::Loader::LegacyFabric { .. }) => "LegacyFabric",
+                Some(andromeda_core::instances::Loader::Babric { .. }) => "Babric",
+                Some(andromeda_core::instances::Loader::Ornithe { .. }) => "Ornithe",
+                Some(andromeda_core::instances::Loader::LiteLoader { .. }) => "LiteLoader",
                 None => "Vanilla",
             }
         )
@@ -78,6 +79,18 @@ fn refresh_instances(
             Some(andromeda_core::instances::Loader::NeoForge { version }) => {
                 format!("NeoForge {version}")
             }
+            Some(andromeda_core::instances::Loader::LegacyFabric { version }) => {
+                format!("LegacyFabric {version}")
+            }
+            Some(andromeda_core::instances::Loader::Babric { version }) => {
+                format!("Babric {version}")
+            }
+            Some(andromeda_core::instances::Loader::Ornithe { version }) => {
+                format!("Ornithe {version}")
+            }
+            Some(andromeda_core::instances::Loader::LiteLoader { version }) => {
+                format!("LiteLoader {version}")
+            }
             None => "Vanilla".into(),
         };
         details.push(format!("{} · {}", item.version, loader).into());
@@ -88,9 +101,18 @@ fn refresh_instances(
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(labels)));
     ui.set_instance_index(0);
 }
-struct PreparedMain { ui: MainWindow, _motion_timer: Rc<slint::Timer>, auth_cancel: std::sync::Arc<std::sync::atomic::AtomicBool> }
-fn main() -> Result<(), slint::PlatformError> {startup_runtime::run(data_dir())}
-fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<PreparedMain, slint::PlatformError> {
+struct PreparedMain {
+    ui: MainWindow,
+    _motion_timer: Rc<slint::Timer>,
+    auth_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+fn main() -> Result<(), slint::PlatformError> {
+    startup_runtime::run(data_dir())
+}
+fn prepare_main(
+    dir: PathBuf,
+    prepared: startup_data::Prepared,
+) -> Result<PreparedMain, slint::PlatformError> {
     let settings_path = dir.join("settings.json");
     let s = prepared.settings;
     let ui = MainWindow::new()?;
@@ -260,12 +282,17 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
             {
                 ui.set_local_name(i.local_name.into());
             }
+            ui.invoke_mods_refresh();
         }
     });
     let manage_weak = ui.as_weak();
     let manage_instances = instances.clone();
     let manage_root = instance_root.clone();
     let manage_trash = last_trash.clone();
+    let version_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let loader_version_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let manage_versions = version_ids.clone();
+    let manage_loader_versions = loader_version_ids.clone();
     ui.on_manage_instance(move |action, name| {
         let Some(ui) = manage_weak.upgrade() else { return; };
         if ui.get_launch_busy() || ui.get_auth_busy() { return; }
@@ -283,15 +310,76 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         let shared = manage_instances.clone();
         let trash = manage_trash.clone();
         let local_name = ui.get_local_name().to_string();
+        let pick_version = ui.get_version_index();
+        let pick_loader = ui.get_loader_index();
+        let pick_loader_version = ui.get_loader_version_index();
+        let versions = manage_versions.clone();
+        let loader_versions_shared = manage_loader_versions.clone();
         let name = name.to_string(); let action = action.to_string();
         std::thread::spawn(move || {
             let result = (|| -> Result<Vec<andromeda_core::instances::Instance>, Box<dyn std::error::Error + Send + Sync>> {
                 match action.as_str() {
-                    "create" => { andromeda_core::instances::create(&root, &name, &local_name, 2048)?; }
-                    "createfabric" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Fabric { version: "0.20.1".into() }))?; }
-                    "createquilt" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Quilt { version: "0.30.2".into() }))?; }
-                    "createforge" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::Forge { version: "61.2.5".into() }))?; }
-                    "createneoforge" => { andromeda_core::instances::create_with_loader(&root, &name, &local_name, 2048, Some(andromeda_core::instances::Loader::NeoForge { version: "21.11.48".into() }))?; }
+                    "createsel" => {
+                        // Version picker flow: the Minecraft version comes from
+                        // the filtered catalog list, the loader is at most one,
+                        // and the loader build is the newest published for that
+                        // Minecraft version (stable when flagged). Everything is
+                        // re-verified against the catalogs before writing.
+                        use andromeda_core::catalog::{verify_selection, LoaderKind};
+                        let dl = andromeda_core::vanilla::Downloader::new()?;
+                        let cache = root.join("catalog-cache");
+                        let mc = versions
+                            .lock()
+                            .map_err(|_| "Version list lock unavailable")?
+                            .get(pick_version as usize)
+                            .cloned()
+                            .ok_or("Pick a game version from the list")?;
+                        let kind = [None, Some(LoaderKind::Fabric), Some(LoaderKind::Quilt), Some(LoaderKind::Forge), Some(LoaderKind::NeoForge), Some(LoaderKind::LegacyFabric), Some(LoaderKind::Babric), Some(LoaderKind::Ornithe), Some(LoaderKind::LiteLoader)]
+                            .get(pick_loader as usize)
+                            .copied()
+                            .flatten();
+                        let loader = match kind {
+                            None => None,
+                            Some(k) => {
+                                // The user picks the build in the list. Never
+                                // substitute another build silently: a missing
+                                // pick blocks with an explanation, and a pick
+                                // that no longer matches the Minecraft version
+                                // is rejected by verify_selection below.
+                                let list = loader_versions_shared
+                                    .lock()
+                                    .map_err(|_| "Loader build list lock unavailable")?;
+                                if list.is_empty() {
+                                    return Err("Pick a loader build from the list; if it is empty, no builds are published for this Minecraft version".into());
+                                }
+                                let v = list
+                                    .get(pick_loader_version as usize)
+                                    .cloned()
+                                    .ok_or("The picked loader build is no longer listed; pick it again")?;
+                                Some((k, v))
+                            }
+                        };
+                        let sel = verify_selection(&dl, &cache, &mc, loader.as_ref().map(|(k, v)| (*k, v.as_str())))?;
+                        andromeda_core::instances::create_selected(&root, &name, &local_name, 2048, &sel)?;
+                    }
+                    "create" | "createfabric" | "createquilt" | "createforge" | "createneoforge" => {
+                        // Every creation is verified against the live loader
+                        // catalogs before an instance is written: the version
+                        // pickers feed these values once the UI exposes them,
+                        // until then the pinned defaults are the request.
+                        use andromeda_core::catalog::{verify_selection, LoaderKind};
+                        let dl = andromeda_core::vanilla::Downloader::new()?;
+                        let cache = root.join("catalog-cache");
+                        let loader = match action.as_str() {
+                            "create" => None,
+                            "createfabric" => Some((LoaderKind::Fabric, "0.20.1")),
+                            "createquilt" => Some((LoaderKind::Quilt, "0.30.2")),
+                            "createforge" => Some((LoaderKind::Forge, "61.2.5")),
+                            _ => Some((LoaderKind::NeoForge, "21.11.48")),
+                        };
+                        let sel = verify_selection(&dl, &cache, "1.21.11", loader)?;
+                        andromeda_core::instances::create_selected(&root, &name, &local_name, 2048, &sel)?;
+                    }
                     "duplicate" => { let i = selected.ok_or("Select an instance, not the default profile")?; andromeda_core::instances::duplicate(&root, &i.id, &name)?; }
                     "trash" => { let i = selected.ok_or("The default profile cannot be trashed here")?; andromeda_core::instances::trash(&root, &i.id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = Some(i.id); }
                     "restore" => { let id = trash.lock().map_err(|_| "Instance lock unavailable")?.clone().ok_or("No instance to restore in this session")?; andromeda_core::instances::restore(&root, &id)?; *trash.lock().map_err(|_| "Instance lock unavailable")? = None; }
@@ -309,6 +397,230 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
             });
         });
     });
+    let vr_weak = ui.as_weak();
+    let vr_root = instance_root.clone();
+    let vr_versions = version_ids.clone();
+    ui.on_version_refresh(move |filter| {
+        let Some(ui) = vr_weak.upgrade() else {
+            return;
+        };
+        if ui.get_launch_busy() {
+            return;
+        }
+        ui.set_launch_busy(true);
+        ui.set_launch_status("Loading the version catalog...".into());
+        let weak = vr_weak.clone();
+        let root = vr_root.clone();
+        let versions = vr_versions.clone();
+        std::thread::spawn(move || {
+            let result =
+                (|| -> Result<Vec<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+                    use andromeda_core::catalog::{mc_versions, McFilter, McKind};
+                    let dl = andromeda_core::vanilla::Downloader::new()?;
+                    let cache = root.join("catalog-cache");
+                    let f = match filter {
+                        0 => McFilter {
+                            release: true,
+                            snapshot: false,
+                            old_beta: false,
+                            old_alpha: false,
+                        },
+                        1 => McFilter {
+                            release: false,
+                            snapshot: true,
+                            old_beta: false,
+                            old_alpha: false,
+                        },
+                        2 => McFilter {
+                            release: false,
+                            snapshot: false,
+                            old_beta: true,
+                            old_alpha: true,
+                        },
+                        _ => McFilter::all(),
+                    };
+                    let page = mc_versions(&dl, &cache, f)?;
+                    Ok(page
+                        .items
+                        .iter()
+                        .map(|v| {
+                            let kind = match v.kind {
+                                McKind::Release => "release",
+                                McKind::Snapshot => "snapshot",
+                                McKind::OldBeta => "old beta",
+                                McKind::OldAlpha => "old alpha",
+                            };
+                            (v.id.clone(), format!("{} · {}", v.id, kind))
+                        })
+                        .collect())
+                })();
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                match result {
+                    Ok(list) => {
+                        let (ids, labels): (Vec<String>, Vec<slint::SharedString>) =
+                            list.into_iter().map(|(i, l)| (i, l.into())).unzip();
+                        let n = labels.len();
+                        if let Ok(mut v) = versions.lock() {
+                            *v = ids;
+                        }
+                        ui.set_version_choices(slint::ModelRc::new(slint::VecModel::from(labels)));
+                        ui.set_launch_status(
+                            format!(
+                                "{n} versions listed. Pick one version and at most one loader."
+                            )
+                            .into(),
+                        );
+                    }
+                    Err(e) => ui.set_launch_status(format!("Could not load versions: {e}").into()),
+                }
+                ui.set_launch_busy(false);
+                // Loader availability for the first listed version.
+                ui.invoke_version_picked(0);
+            });
+        });
+    });
+    let vp_weak = ui.as_weak();
+    let vp_root = instance_root.clone();
+    let vp_versions = version_ids.clone();
+    let vp_loader_versions = loader_version_ids.clone();
+    ui.on_version_picked(move |index| {
+        // Refresh which loaders have builds for the picked Minecraft version
+        // and the build list of the currently selected loader.
+        let Some(ui) = vp_weak.upgrade() else {
+            return;
+        };
+        let mc = match vp_versions
+            .lock()
+            .ok()
+            .and_then(|v| v.get(index as usize).cloned())
+        {
+            Some(mc) => mc,
+            None => return,
+        };
+        let kind_index = ui.get_loader_index();
+        ui.set_launch_busy(true);
+        let weak = vp_weak.clone();
+        let root = vp_root.clone();
+        let loader_versions_shared = vp_loader_versions.clone();
+        type LaunchPrep = Result<
+            (Vec<bool>, Vec<String>, Vec<slint::SharedString>),
+            Box<dyn std::error::Error + Send + Sync>,
+        >;
+        std::thread::spawn(move || {
+            let result = (|| -> LaunchPrep {
+                use andromeda_core::catalog::{available_loaders, loader_versions, LoaderKind};
+                let dl = andromeda_core::vanilla::Downloader::new()?;
+                let cache = root.join("catalog-cache");
+                let avail = available_loaders(&dl, &cache, &mc)?;
+                let flags: Vec<bool> = [true]
+                    .into_iter()
+                    .chain(LoaderKind::all().iter().map(|k| avail.contains(k)))
+                    .collect();
+                let mut ids = Vec::new();
+                let mut labels = Vec::new();
+                if let Some(k) = [
+                    None,
+                    Some(LoaderKind::Fabric),
+                    Some(LoaderKind::Quilt),
+                    Some(LoaderKind::Forge),
+                    Some(LoaderKind::NeoForge),
+                    Some(LoaderKind::LegacyFabric),
+                    Some(LoaderKind::Babric),
+                    Some(LoaderKind::Ornithe),
+                    Some(LoaderKind::LiteLoader),
+                ]
+                .get(kind_index as usize)
+                .copied()
+                .flatten()
+                {
+                    if avail.contains(&k) {
+                        for v in loader_versions(&dl, &cache, k, &mc)?.items {
+                            let tag = if v.stable == Some(true) {
+                                " · stable"
+                            } else {
+                                ""
+                            };
+                            labels.push(format!("{}{tag}", v.version).into());
+                            ids.push(v.version);
+                        }
+                    }
+                }
+                Ok((flags, ids, labels))
+            })();
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                match result {
+                    Ok((flags, ids, labels)) => {
+                        let loader_index = ui.get_loader_index() as usize;
+                        if loader_index > 0 && !flags.get(loader_index).copied().unwrap_or(false) {
+                            ui.set_loader_index(0);
+                        }
+                        ui.set_loader_available(slint::ModelRc::new(slint::VecModel::from(flags)));
+                        if let Ok(mut v) = loader_versions_shared.lock() {
+                            *v = ids;
+                        }
+                        ui.set_loader_version_index(0);
+                        ui.set_loader_version_choices(slint::ModelRc::new(slint::VecModel::from(
+                            labels,
+                        )));
+                    }
+                    Err(e) => ui.set_launch_status(format!("Could not check loaders: {e}").into()),
+                }
+                ui.set_launch_busy(false);
+            });
+        });
+    });
+    let lp_weak = ui.as_weak();
+    let lp_root = instance_root.clone();
+    let lp_versions = version_ids.clone();
+    let lp_loader_versions = loader_version_ids.clone();
+    ui.on_loader_picked(move |index| {
+        let Some(ui) = lp_weak.upgrade() else { return; };
+        if index == 0 {
+            if let Ok(mut v) = lp_loader_versions.lock() { v.clear(); }
+            ui.set_loader_version_choices(slint::ModelRc::new(slint::VecModel::from(Vec::<slint::SharedString>::new())));
+            return;
+        }
+        let mc = match lp_versions.lock().ok().and_then(|v| v.get(ui.get_version_index() as usize).cloned()) {
+            Some(mc) => mc,
+            None => return,
+        };
+        ui.set_launch_busy(true);
+        let weak = lp_weak.clone();
+        let root = lp_root.clone();
+        let loader_versions_shared = lp_loader_versions.clone();
+        std::thread::spawn(move || {
+            let result = (|| -> Result<(Vec<String>, Vec<slint::SharedString>), Box<dyn std::error::Error + Send + Sync>> {
+                use andromeda_core::catalog::{loader_versions, LoaderKind};
+                let kind = [LoaderKind::Fabric, LoaderKind::Quilt, LoaderKind::Forge, LoaderKind::NeoForge, LoaderKind::LegacyFabric, LoaderKind::Babric, LoaderKind::Ornithe, LoaderKind::LiteLoader][index as usize - 1];
+                let dl = andromeda_core::vanilla::Downloader::new()?;
+                let cache = root.join("catalog-cache");
+                let mut ids = Vec::new();
+                let mut labels = Vec::new();
+                for v in loader_versions(&dl, &cache, kind, &mc)?.items {
+                    let tag = if v.stable == Some(true) { " · stable" } else { "" };
+                    labels.push(format!("{}{tag}", v.version).into());
+                    ids.push(v.version);
+                }
+                Ok((ids, labels))
+            })();
+            let _ = weak.upgrade_in_event_loop(move |ui| {
+                match result {
+                    Ok((ids, labels)) => {
+                        if let Ok(mut v) = loader_versions_shared.lock() { *v = ids; }
+                        ui.set_loader_version_index(0);
+                        ui.set_loader_version_choices(slint::ModelRc::new(slint::VecModel::from(labels)));
+                    }
+                    Err(e) => ui.set_launch_status(format!("Could not load loader builds: {e}").into()),
+                }
+                ui.set_launch_busy(false);
+            });
+        });
+    });
+    mods_wire::wire_mods!(ui, instances, instance_root);
+
+    ui.invoke_mods_refresh();
+
+    ui.invoke_version_refresh(0);
     let launch_weak = ui.as_weak();
     let vanilla_dir = dir.join("vanilla");
     ui.on_launch_offline(move |name| {
@@ -332,6 +644,10 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         let game_dir = selected_game.and_then(Result::ok);
         let memory = selected.as_ref().map(|i| i.memory_mb).unwrap_or(2048);
         let loader = selected.as_ref().and_then(|i| i.loader.clone());
+        let mc = selected
+            .as_ref()
+            .map(|i| i.version.clone())
+            .unwrap_or_else(|| "1.21.11".to_string());
         ui.set_launch_busy(true);
         ui.set_launch_status("Preparing installed vanilla 1.21.11...".into());
         let weak = launch_weak.clone();
@@ -355,7 +671,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
                         andromeda_core::launch::prepare_fabric(
                             &root,
-                            "1.21.11",
+                            &mc,
                             &name,
                             memory,
                             &game,
@@ -367,7 +683,7 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
                         andromeda_core::launch::prepare_quilt(
                             &root,
-                            "1.21.11",
+                            &mc,
                             &name,
                             memory,
                             &game,
@@ -375,44 +691,100 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
                             &version,
                         )?
                     }
-                    Some(andromeda_core::instances::Loader::Forge { .. }) => {
+                    Some(andromeda_core::instances::Loader::Forge { version }) => {
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        let spec = andromeda_core::upstream_install::Spec::new(
+                            andromeda_core::upstream_install::Kind::Forge,
+                            &mc,
+                            &version,
+                        )?;
                         andromeda_core::launch::prepare_upstream(
                             &root,
-                            "1.21.11",
+                            &mc,
                             &name,
                             memory,
                             &game,
                             session.as_ref(),
-                            andromeda_core::upstream_install::Kind::Forge,
+                            &spec,
                         )?
                     }
-                    Some(andromeda_core::instances::Loader::NeoForge { .. }) => {
+                    Some(andromeda_core::instances::Loader::NeoForge { version }) => {
                         let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        let spec = andromeda_core::upstream_install::Spec::new(
+                            andromeda_core::upstream_install::Kind::NeoForge,
+                            &mc,
+                            &version,
+                        )?;
                         andromeda_core::launch::prepare_upstream(
                             &root,
-                            "1.21.11",
+                            &mc,
                             &name,
                             memory,
                             &game,
                             session.as_ref(),
-                            andromeda_core::upstream_install::Kind::NeoForge,
+                            &spec,
+                        )?
+                    }
+                    Some(andromeda_core::instances::Loader::LegacyFabric { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_legacyfabric(
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
+                        )?
+                    }
+                    Some(andromeda_core::instances::Loader::Babric { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_babric(
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
+                        )?
+                    }
+                    Some(andromeda_core::instances::Loader::Ornithe { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_ornithe(
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
+                        )?
+                    }
+                    Some(andromeda_core::instances::Loader::LiteLoader { version }) => {
+                        let game = game_dir.unwrap_or_else(|| root.join("game"));
+                        andromeda_core::launch::prepare_liteloader(
+                            &root,
+                            &mc,
+                            &name,
+                            memory,
+                            &game,
+                            session.as_ref(),
+                            &version,
                         )?
                     }
                     None => match session {
                         Some(session) => {
                             let game = game_dir.unwrap_or_else(|| root.join("game"));
                             andromeda_core::launch::prepare_authenticated(
-                                &root, "1.21.11", memory, &game, &session,
+                                &root, &mc, memory, &game, &session,
                             )?
                         }
                         None => match game_dir {
                             Some(game) => andromeda_core::launch::prepare_in_game_dir(
-                                &root, "1.21.11", &name, memory, &game,
+                                &root, &mc, &name, memory, &game,
                             )?,
-                            None => {
-                                andromeda_core::launch::prepare(&root, "1.21.11", &name, memory)?
-                            }
+                            None => andromeda_core::launch::prepare(&root, &mc, &name, memory)?,
                         },
                     },
                 };
@@ -446,5 +818,9 @@ fn prepare_main(dir: PathBuf, prepared: startup_data::Prepared) -> Result<Prepar
         });
     });
 
-    Ok(PreparedMain {ui,_motion_timer,auth_cancel})
+    Ok(PreparedMain {
+        ui,
+        _motion_timer,
+        auth_cancel,
+    })
 }

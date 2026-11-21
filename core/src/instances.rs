@@ -15,26 +15,53 @@ pub enum Loader {
     Quilt { version: String },
     Forge { version: String },
     NeoForge { version: String },
+    LegacyFabric { version: String },
+    Babric { version: String },
+    Ornithe { version: String },
+    LiteLoader { version: String },
+}
+/// Loader versions are short Maven-style version strings. Compatibility with
+/// a specific Minecraft version is checked against the live catalog before
+/// creation (see catalog::loader_versions); this check is purely structural
+/// so that stored instances stay readable offline.
+pub fn validate_loader_version(version: &str) -> Result<()> {
+    if version.is_empty()
+        || version.len() > 64
+        || !version
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_' | b'+'))
+    {
+        return Err("Invalid loader version".into());
+    }
+    Ok(())
 }
 impl Loader {
     fn validate(&self) -> Result<()> {
-        match self {
-            Self::Forge { version }
-                if version == crate::upstream_install::Kind::Forge.version() => {}
-            Self::NeoForge { version }
-                if version == crate::upstream_install::Kind::NeoForge.version() => {}
-            Self::Forge { .. } | Self::NeoForge { .. } => {
-                return Err("Unsupported pinned Forge-family version".into())
-            }
-            Self::Quilt { version } => {
-                crate::fabric::maven_path(&format!("org.quiltmc:quilt-loader:{version}"))?;
-            }
-            Self::Fabric { version } => {
-                crate::fabric::maven_path(&format!("net.fabricmc:fabric-loader:{version}"))?;
-            }
-        }
-        Ok(())
+        let version = match self {
+            Self::Fabric { version }
+            | Self::Quilt { version }
+            | Self::Forge { version }
+            | Self::NeoForge { version }
+            | Self::LegacyFabric { version } => version,
+            Self::Babric { version } => version,
+            Self::Ornithe { version } => version,
+            Self::LiteLoader { version } => version,
+        };
+        validate_loader_version(version)
     }
+}
+/// Minecraft version ids are short release/snapshot ids such as "1.21.11",
+/// "26w14a" or "b1.7.3".
+pub fn validate_mc_id(version: &str) -> Result<()> {
+    if version.is_empty()
+        || version.len() > 64
+        || !version
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
+    {
+        return Err("Invalid Minecraft version".into());
+    }
+    Ok(())
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Instance {
@@ -99,9 +126,10 @@ fn read_instance(dir: &Path, id: &str) -> Result<Instance> {
         return Err("Invalid instance metadata file".into());
     }
     let instance: Instance = serde_json::from_slice(&fs::read(dir.join("instance.json"))?)?;
-    if instance.schema != SCHEMA || instance.id != id || instance.version != "1.21.11" {
+    if instance.schema != SCHEMA || instance.id != id {
         return Err("Unsupported or mismatched instance metadata".into());
     }
+    validate_mc_id(&instance.version)?;
     validate_name(&instance.name)?;
     if let Some(loader) = &instance.loader {
         loader.validate()?;
@@ -166,7 +194,7 @@ fn publish(root: &Path, instance: &Instance, source: Option<&Path>) -> Result<()
     Ok(())
 }
 pub fn create(root: &Path, name: &str, local_name: &str, memory_mb: u32) -> Result<Instance> {
-    create_with_loader(root, name, local_name, memory_mb, None)
+    create_for_version(root, name, local_name, memory_mb, "1.21.11", None)
 }
 /// Creates a fresh isolated instance. Never converts an existing world/instance.
 pub fn create_with_loader(
@@ -176,6 +204,56 @@ pub fn create_with_loader(
     memory_mb: u32,
     loader: Option<Loader>,
 ) -> Result<Instance> {
+    create_for_version(root, name, local_name, memory_mb, "1.21.11", loader)
+}
+/// Creates an instance from a selection verified against the catalog. This
+/// is the entry point for user-facing selection flows: the combination can
+/// only arrive here after catalog::verify_selection confirmed it upstream,
+/// so impossible Minecraft/loader pairs are rejected before any instance is
+/// written. One loader at most, exactly as selected.
+pub fn create_selected(
+    root: &Path,
+    name: &str,
+    local_name: &str,
+    memory_mb: u32,
+    selection: &crate::catalog::VerifiedSelection,
+) -> Result<Instance> {
+    let loader = selection.loader().map(|l| {
+        let version = l.version.clone();
+        match l.kind {
+            crate::catalog::LoaderKind::Fabric => Loader::Fabric { version },
+            crate::catalog::LoaderKind::Quilt => Loader::Quilt { version },
+            // The catalog lists Forge builds combined ("1.21.11-61.2.5");
+            // instances store the bare loader build, matching the schema that
+            // existing on-disk instances already use.
+            crate::catalog::LoaderKind::Forge => {
+                let prefix = format!("{}-", selection.mc());
+                let bare = version.strip_prefix(&prefix).unwrap_or(&version);
+                Loader::Forge {
+                    version: bare.to_owned(),
+                }
+            }
+            crate::catalog::LoaderKind::NeoForge => Loader::NeoForge { version },
+            crate::catalog::LoaderKind::LegacyFabric => Loader::LegacyFabric { version },
+            crate::catalog::LoaderKind::Babric => Loader::Babric { version },
+            crate::catalog::LoaderKind::Ornithe => Loader::Ornithe { version },
+            crate::catalog::LoaderKind::LiteLoader => Loader::LiteLoader { version },
+        }
+    });
+    create_for_version(root, name, local_name, memory_mb, selection.mc(), loader)
+}
+/// Creates a fresh isolated instance for any catalog Minecraft version.
+/// Callers offering loader selection must first confirm the loader build
+/// exists for `version` through catalog::loader_versions.
+pub fn create_for_version(
+    root: &Path,
+    name: &str,
+    local_name: &str,
+    memory_mb: u32,
+    version: &str,
+    loader: Option<Loader>,
+) -> Result<Instance> {
+    validate_mc_id(version)?;
     if let Some(loader) = &loader {
         loader.validate()?;
     }
@@ -189,7 +267,7 @@ pub fn create_with_loader(
         schema: SCHEMA,
         id: unique_id()?,
         name: name.trim().to_owned(),
-        version: "1.21.11".into(),
+        version: version.into(),
         local_name: local_name.into(),
         memory_mb,
         loader,
@@ -445,5 +523,90 @@ mod loader_tests {
         }
         .validate()
         .is_err());
+        assert!(Loader::Forge {
+            version: "..\\x".into()
+        }
+        .validate()
+        .is_err());
+    }
+    #[test]
+    fn create_selected_stores_bare_forge_version() {
+        let dir =
+            std::env::temp_dir().join(format!("andromeda-inst-test-{}-csf", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("mc-manifest.json"),
+            r#"{"versions":[{"id":"1.21.11","type":"release","url":"https://piston-meta.mojang.com/x.json","releaseTime":"2025-01-01T00:00:00Z"}]}"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.join("forge-maven-meta.json"),
+            r#"<?xml version="1.0"?><metadata><versioning><versions><version>1.21.11-61.2.5</version></versions></versioning></metadata>"#,
+        )
+        .unwrap();
+        let dl = crate::vanilla::Downloader::new().unwrap();
+        let sel = crate::catalog::verify_selection(
+            &dl,
+            &dir,
+            "1.21.11",
+            Some((crate::catalog::LoaderKind::Forge, "1.21.11-61.2.5")),
+        )
+        .unwrap();
+        let root = dir.join("instances");
+        let i = create_selected(&root, "Modded", "Player", 2048, &sel).unwrap();
+        assert_eq!(
+            i.loader,
+            Some(Loader::Forge {
+                version: "61.2.5".into()
+            })
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+    #[test]
+    fn any_structurally_valid_loader_version_is_accepted() {
+        // Compatibility with a given Minecraft version is a catalog concern;
+        // stored instances must not be tied to a pinned loader build.
+        Loader::Forge {
+            version: "61.2.5".into(),
+        }
+        .validate()
+        .unwrap();
+        Loader::Forge {
+            version: "47.4.10".into(),
+        }
+        .validate()
+        .unwrap();
+        Loader::NeoForge {
+            version: "21.1.197".into(),
+        }
+        .validate()
+        .unwrap();
+    }
+    #[test]
+    fn create_for_version_stores_the_selected_version() {
+        let root =
+            std::env::temp_dir().join(format!("andromeda-inst-test-{}-cfv", std::process::id()));
+        let i = create_for_version(
+            &root,
+            "Beta",
+            "Player",
+            2048,
+            "b1.7.3",
+            Some(Loader::Fabric {
+                version: "0.20.1".into(),
+            }),
+        )
+        .unwrap();
+        assert_eq!(i.version, "b1.7.3");
+        let loaded = get(&root, &i.id).unwrap();
+        assert_eq!(loaded.version, "b1.7.3");
+        assert_eq!(
+            loaded.loader,
+            Some(Loader::Fabric {
+                version: "0.20.1".into()
+            })
+        );
+        assert!(create_for_version(&root, "Bad", "Player", 2048, "../etc", None).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 }
