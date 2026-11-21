@@ -56,20 +56,17 @@ pub fn prepare(root: &Path, cancel: &AtomicBool) -> Result<Prepared, PrepareErro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        fs,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::{fs, sync::atomic::AtomicU64};
     struct Fixture(std::path::PathBuf);
     impl Fixture {
         fn new() -> Self {
+            // Unique per test even on coarse-granularity clocks: parallel tests
+            // in the same process must never share (and delete) a fixture dir.
+            static NEXT: AtomicU64 = AtomicU64::new(0);
             let p = std::env::temp_dir().join(format!(
                 "andromeda-startup-data-{}-{}",
                 std::process::id(),
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos()
+                NEXT.fetch_add(1, Ordering::Relaxed)
             ));
             fs::create_dir_all(&p).unwrap();
             Self(p)
