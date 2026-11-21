@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Andromeda UI Lab (Tauri)</title>
+</head>
+<body>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+
+  <header class="topbar">
+    <img src="assets/planet.svg" class="logo" alt="Andromeda" />
+    <span class="wordmark">Andromeda</span>
+    <div class="spacer"></div>
+    <div class="search glass"><span class="search-icon">⌕</span><span>Buscar en tu biblioteca</span></div>
+  </header>
+
+  <main class="viewport">
+    <div class="grid" id="grid">
+      <div class="card"><div class="cover"><img src="assets/cover0.svg" /></div><div class="meta"><div class="title">Survival Alba</div><div class="sub">1.21.4 · Fabric&nbsp;&nbsp;·&nbsp;&nbsp;132 h</div></div></div>
+      <div class="card"><div class="cover"><img src="assets/cover1.svg" /></div><div class="meta"><div class="title">Creativo Horizonte</div><div class="sub">1.21.1 · Vanilla&nbsp;&nbsp;·&nbsp;&nbsp;87 h</div></div></div>
+      <div class="card"><div class="cover"><img src="assets/cover2.svg" /></div><div class="meta"><div class="title">Hardcore Cartógrafo</div><div class="sub">1.20.6 · NeoForge&nbsp;&nbsp;·&nbsp;&nbsp;54 h</div></div></div>
+      <div class="card"><div class="cover"><img src="assets/cover3.svg" /></div><div class="meta"><div class="title">Skyblock+</div><div class="sub">1.21.3 · Quilt&nbsp;&nbsp;·&nbsp;&nbsp;41 h</div></div></div>
+      <div class="card"><div class="cover"><img src="assets/cover4.svg" /></div><div class="meta"><div class="title">PvP Arena</div><div class="sub">1.8.9 · LegacyFabric&nbsp;&nbsp;·&nbsp;&nbsp;26 h</div></div></div>
+      <div class="card"><div class="cover"><img src="assets/cover5.svg" /></div><div class="meta"><div class="title">Beta Nostalgia</div><div class="sub">b1.7.3 · Ornithe&nbsp;&nbsp;·&nbsp;&nbsp;12 h</div></div></div>
+    </div>
+  </main>
+
+  <nav class="nav glass">
+    <div class="pill" id="pill"></div>
+    <div class="tab active" data-i="0">Inicio</div>
+    <div class="tab" data-i="1">Biblioteca</div>
+    <div class="tab" data-i="2">Instancias</div>
+    <div class="tab" data-i="3">Ajustes</div>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>

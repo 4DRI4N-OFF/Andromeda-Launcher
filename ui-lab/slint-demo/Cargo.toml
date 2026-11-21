@@ -1,0 +1,13 @@
+[package]
+name = "ui-lab-slint"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slint = { version = "1.19", default-features = false, features = ["std", "backend-winit", "renderer-skia"] }
+
+[build-dependencies]
+slint-build = "1.19"
+
+[profile.release]
+opt-level = 2
