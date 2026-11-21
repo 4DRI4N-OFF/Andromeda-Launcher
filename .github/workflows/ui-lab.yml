@@ -1,0 +1,46 @@
+name: ui-lab
+on:
+  workflow_dispatch:
+  push:
+    branches: [ui-lab/ios26-comparison]
+    paths: ['ui-lab-payload.b64']
+
+permissions:
+  contents: write
+
+jobs:
+  build-run:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode payload
+        shell: pwsh
+        run: |
+          $b64 = [IO.File]::ReadAllText("ui-lab-payload.b64") -replace '\s',''
+          [IO.File]::WriteAllBytes("ui-lab.tar.gz", [Convert]::FromBase64String($b64))
+          tar -xzf ui-lab.tar.gz
+      - name: Commit lab sources for review
+        shell: pwsh
+        run: |
+          git config user.name "instinct-bot"
+          git config user.email "instinct@users.noreply.github.com"
+          git add ui-lab
+          git diff --cached --quiet || git commit -m "ui-lab: decoded lab sources"
+          git push || echo "push failed (permissions), sources remain in artifact"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            ui-lab/slint-demo -> target
+            ui-lab/tauri-demo/src-tauri -> target
+      - name: Build Slint demo
+        run: cargo build --release --manifest-path ui-lab/slint-demo/Cargo.toml
+      - name: Build Tauri demo
+        run: cargo build --release --manifest-path ui-lab/tauri-demo/src-tauri/Cargo.toml
+      - name: Run and capture
+        shell: pwsh
+        run: ui-lab/capture.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-lab-results
+          path: ui-lab-results/
