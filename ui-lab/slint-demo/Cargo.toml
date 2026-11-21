@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-slint = { version = "1.19", default-features = false, features = ["std", "backend-winit", "renderer-skia"] }
+slint = { version = "1.19", default-features = false, features = ["std", "compat-1-18", "backend-winit", "renderer-skia"] }
 
 [build-dependencies]
 slint-build = "1.19"
