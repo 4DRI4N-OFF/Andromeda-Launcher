@@ -533,19 +533,19 @@ export component MainWindow inherits Window {
         if root.active-tab == 0 : LibraryView {
             width: parent.width; height: parent.height;
             names: root.profile-titles; details: root.profile-details;
-            selected-index: root.instance-index; busy: root.busy;
+            selected-index: root.instance-index >= 0 && root.instance-index < root.instance-names.length ? root.instance-index : -1; busy: root.busy;
             reduced-motion: root.reduce-animations; player-name: root.local-name;
             body-font: ThemePalette.body-font;
-            show-branding: root.startup-glyphs.length == 0 && !root.startup-overlay;
+            show-branding: !root.startup-overlay;
             status: root.launch-status;
             filter-indices(names, query) => { root.library-filter(names, query) }
             select(index) => {
-                if !root.busy && index >= 0 && index < root.instance-names.length {
+                if !root.busy && index >= 0 && index < root.instance-names.length && index < root.profile-titles.length {
                     root.instance-index = index;
                     root.instance-selected(index);
                 }
             }
-            play => { if !root.busy { root.launch-offline(root.local-name); } }
+            play => { if !root.busy && root.instance-index >= 0 && root.instance-index < root.instance-names.length && root.instance-index < root.profile-titles.length { root.launch-offline(root.local-name); } }
             create => { if !root.busy { root.active-tab = 3; root.settings-section = 0; } }
             navigate(index) => { if index >= 0 && index <= 3 { root.active-tab = index; } }
             account => { root.active-tab = 4; }
@@ -853,7 +853,7 @@ export component MainWindow inherits Window {
         TouchArea { enabled: root.startup-overlay; }
     }
     // Keep the same Path instances at the destination: no SVG/Path rasterization swap.
-    if root.startup-glyphs.length > 0 : StartupLogo {
+    if root.startup-glyphs.length > 0 && (root.startup-overlay || root.active-tab != 0) : StartupLogo {
         property <float> dest-scale: root.startup-dest-width / 1120.24;
         x: (root.startup-overlay ? root.startup-x : root.startup-dest-x - 400.28 * self.dest-scale) * 1px;
         y: (root.startup-overlay ? root.startup-y : root.startup-dest-y + (28. - 75. * root.startup-dest-width / 836.) / 2. - 456.34 * self.dest-scale) * 1px;
