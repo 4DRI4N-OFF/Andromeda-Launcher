@@ -116,6 +116,9 @@ fn prepare_main(
     let settings_path = dir.join("settings.json");
     let s = prepared.settings;
     let ui = MainWindow::new()?;
+    ui.on_library_matches(|name, query| {
+        name.to_lowercase().contains(&query.to_lowercase())
+    });
     let _motion_timer = motion_ui::install(&ui);
     tracing::info!("Launcher UI created");
     ui.set_reduce_animations(s.reduce_animations);
@@ -823,4 +826,4 @@ fn prepare_main(
         _motion_timer,
         auth_cancel,
     })
-}
+                }
