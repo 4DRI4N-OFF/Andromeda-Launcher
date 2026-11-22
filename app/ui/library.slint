@@ -84,7 +84,7 @@ export component LibraryView inherits Rectangle {
             y: parent.narrow ? 148px : 108px; width: parent.width;
             height: content.narrow && root.height < 700px ? 176px : min(360px, max(200px, root.height * 0.37));
             border-radius: 28px; clip: true; background: #151822;
-            Image { x: parent.width * 0.29; width: parent.width * 0.71; height: parent.height; source: @image-url("library/landscape.png"); image-fit: cover; opacity: 0.58; }
+            Image { x: parent.width * 0.29; width: parent.width * 0.71; height: parent.height; source: @image-url("landscape.svg"); image-fit: cover; opacity: 0.58; }
             Rectangle { width: 100%; height: 100%; background: @linear-gradient(90deg, #13151d 5%, #13151de8 32%, #11131a20 100%); }
             Rectangle { width: 100%; height: 100%; border-radius: 28px; border-width: 1px; border-color: #ffffff1c; }
             Text { x: 28px; y: parent.height - 169px; width: parent.width - 56px; height: 22px; text: root.has-selection ? "CONTINUE PLAYING" : "MAKE IT YOURS"; font-family: root.body-font; font-size: 11px; font-weight: 600; letter-spacing: 1.2px; color: #b1b8ca; }
