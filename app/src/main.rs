@@ -19,7 +19,7 @@ mod startup_runtime;
 mod startup_sheen;
 mod theme_ui;
 use andromeda_core::settings::Settings;
-use slint::ComponentHandle;
+use slint::{ComponentHandle, Model};
 use std::{path::PathBuf, rc::Rc};
 slint::include_modules!();
 
@@ -116,8 +116,13 @@ fn prepare_main(
     let settings_path = dir.join("settings.json");
     let s = prepared.settings;
     let ui = MainWindow::new()?;
-    ui.on_library_matches(|name, query| {
-        name.to_lowercase().contains(&query.to_lowercase())
+    ui.on_library_filter(|names, query| {
+        let query = query.to_lowercase();
+        let indices: Vec<i32> = (0..names.row_count())
+            .filter(|&i| names.row_data(i).is_some_and(|name| name.to_lowercase().contains(&query)))
+            .filter_map(|i| i32::try_from(i).ok())
+            .collect();
+        slint::ModelRc::new(slint::VecModel::from(indices))
     });
     let _motion_timer = motion_ui::install(&ui);
     tracing::info!("Launcher UI created");
@@ -826,4 +831,4 @@ fn prepare_main(
         _motion_timer,
         auth_cancel,
     })
-                }
+            }
