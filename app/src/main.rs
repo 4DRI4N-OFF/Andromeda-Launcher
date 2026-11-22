@@ -116,6 +116,8 @@ fn prepare_main(
     let settings_path = dir.join("settings.json");
     let s = prepared.settings;
     let ui = MainWindow::new()?;
+    // refresh_instances replaces profile_titles with a new ModelRc. Keep that
+    // contract: in-place row edits do not invalidate this pure Slint callback.
     ui.on_library_filter(|names, query| {
         let query = query.to_lowercase();
         let indices: Vec<i32> = (0..names.row_count())
@@ -831,4 +833,4 @@ fn prepare_main(
         _motion_timer,
         auth_cancel,
     })
-            }
+                                               }
