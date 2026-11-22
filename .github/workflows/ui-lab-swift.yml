@@ -1,0 +1,45 @@
+name: ui-lab-swift
+on:
+  push:
+    branches: [ui-lab/ios26-comparison]
+    paths: ['ui-lab-swift-payload.b64']
+
+permissions:
+  contents: read
+
+jobs:
+  swift:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode payload
+        shell: pwsh
+        run: |
+          $b64 = [IO.File]::ReadAllText("ui-lab-swift-payload.b64") -replace '\s',''
+          [IO.File]::WriteAllBytes("ui-lab-swift.tar.gz", [Convert]::FromBase64String($b64))
+          tar -xzf ui-lab-swift.tar.gz
+      - name: Setup VS Dev Environment
+        uses: seanmiddleditch/gha-setup-vsdevenv@v5
+      - name: Setup Swift 6.1 (mirrors swift-cross-ui own CI)
+        uses: compnerd/gha-setup-swift@v0.3.0
+        with:
+          branch: swift-6.1-release
+          tag: 6.1-RELEASE
+      - name: Swift version
+        run: swift --version
+      - name: Install WindowsAppSDK 1.5.240205001-preview1 runtime (WinUIBackend runtime requirement)
+        shell: pwsh
+        run: |
+          curl.exe -L -o warinstall.exe "https://aka.ms/windowsappsdk/1.5/1.5.240205001-preview1/windowsappruntimeinstall-x64.exe"
+          Start-Process -FilePath .\warinstall.exe -ArgumentList "--quiet" -Wait
+      - name: Build SwiftCrossUI demo (WinUIBackend via DefaultBackend)
+        run: swift build --package-path ui-lab/swift-demo
+      - name: Run and capture
+        shell: pwsh
+        run: ui-lab/capture.ps1 -Exe ui-lab\swift-demo\.build\debug\ui-lab-swift.exe -Name swift -ChildMem $false
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-lab-swift
+          path: ui-lab-results/swift/
