@@ -3,6 +3,7 @@ import { ScrollView } from "std-widgets.slint";
 // Native Slint view. Models and actions are supplied by the existing Rust app.
 component PillButton inherits Rectangle {
     in property <string> label;
+    in property <string> body-font: "Inter";
     in property <bool> primary: false;
     in property <bool> enabled: true;
     in property <bool> reduced-motion: false;
@@ -10,12 +11,19 @@ component PillButton inherits Rectangle {
     height: 44px;
     border-radius: self.height / 2;
     border-width: 1px;
-    border-color: primary ? #5aafff : #ffffff20;
+    border-color: focus.has-focus ? #8ec8ff : primary ? #5aafff : #ffffff20;
     background: primary ? (touch.pressed ? #136fd1 : touch.has-hover ? #389dff : #1888f2) : (touch.pressed ? #30323b : touch.has-hover ? #292c34 : #ffffff0c);
     opacity: enabled ? 1 : 0.4;
-    animate background { duration: 120ms; }
-    Text { text: root.label; color: #f5f6fa; font-family: "Inter"; font-size: 14px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-    touch := TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { root.clicked(); } }
+    animate background { duration: root.reduced-motion ? 0ms : 120ms; }
+    Text { text: root.label; color: #f5f6fa; font-family: root.body-font; font-size: 14px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if root.enabled && (event.text == Key.Return || event.text == " ") { root.clicked(); return accept; }
+            reject
+        }
+    }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { focus.focus(); root.clicked(); } }
 }
 
 export component LibraryView inherits Rectangle {
@@ -28,7 +36,9 @@ export component LibraryView inherits Rectangle {
     in property <string> player-name: "Player";
     in property <string> status;
     in property <bool> show-navigation: true;
-    pure callback matches(string, string) -> bool;
+    in property <bool> show-branding: true;
+    pure callback filter-indices([string], string) -> [int];
+    property <[int]> filtered: root.filter-indices(root.names, root.query);
     callback select(int);
     callback play();
     callback navigate(int);
@@ -45,22 +55,24 @@ export component LibraryView inherits Rectangle {
         x: 16px; y: 16px; width: root.sidebar-width; height: parent.height - 32px;
         border-radius: 26px; border-width: 1px; border-color: #ffffff16;
         background: @linear-gradient(150deg, #ffffff0e, #ffffff04);
-        Image { x: 22px; y: 28px; width: parent.width - 44px; height: 42px; source: @image-url("branding/andromeda-light.svg"); image-fit: contain; }
+        Image { visible: root.show-branding; x: 22px; y: 28px; width: parent.width - 44px; height: 42px; source: @image-url("branding/andromeda-light.svg"); image-fit: contain; }
         for title[i] in ["Library", "Instances", "Mods", "Settings"] : Rectangle {
             x: 12px; y: 112px + i * 54px; width: parent.width - 24px; height: 44px;
             border-radius: 22px; border-width: i == 0 ? 1px : 0px; border-color: #ffffff23;
-            background: i == 0 ? #ffffff15 : nav-touch.has-hover ? #ffffff0a : transparent;
+            background: nav-focus.has-focus ? #ffffff24 : i == 0 ? #ffffff15 : nav-touch.has-hover ? #ffffff0a : transparent;
             Text { x: 18px; width: parent.width - 36px; text: title; font-family: root.body-font; font-size: 14px; font-weight: i == 0 ? 600 : 400; color: i == 0 ? #f2f3f7 : #a2a6b2; vertical-alignment: center; }
-            nav-touch := TouchArea { mouse-cursor: pointer; clicked => { root.navigate(i); } }
+            nav-focus := FocusScope { key-pressed(event) => { if event.text == Key.Return || event.text == " " { root.navigate(i); return accept; } reject } }
+            nav-touch := TouchArea { mouse-cursor: pointer; clicked => { nav-focus.focus(); root.navigate(i); } }
         }
         Rectangle { x: 22px; y: parent.height - 94px; width: parent.width - 44px; height: 1px; background: #ffffff12; }
-        Rectangle { x: 12px; y: parent.height - 82px; width: parent.width - 24px; height: 68px; border-radius: 20px; background: profile-touch.has-hover ? #ffffff0a : transparent;
+        Rectangle { x: 12px; y: parent.height - 82px; width: parent.width - 24px; height: 68px; border-radius: 20px; background: profile-focus.has-focus ? #ffffff24 : profile-touch.has-hover ? #ffffff0a : transparent;
             Rectangle { x: 12px; y: 15px; width: 36px; height: 36px; border-radius: 18px; background: #282536;
                 Text { text: "A"; font-family: root.body-font; font-size: 15px; font-weight: 600; color: #d6ccf7; horizontal-alignment: center; vertical-alignment: center; }
             }
             Text { x: 60px; y: 13px; width: parent.width - 66px; height: 22px; text: root.player-name; color: #e5e7ed; font-family: root.body-font; font-size: 13px; font-weight: 600; overflow: elide; }
             Text { x: 60px; y: 36px; width: parent.width - 66px; height: 18px; text: "Account"; color: #9398a8; font-family: root.body-font; font-size: 11px; }
-            profile-touch := TouchArea { mouse-cursor: pointer; clicked => { root.account(); } }
+            profile-focus := FocusScope { key-pressed(event) => { if event.text == Key.Return || event.text == " " { root.account(); return accept; } reject } }
+            profile-touch := TouchArea { mouse-cursor: pointer; clicked => { profile-focus.focus(); root.account(); } }
         }
     }
     content := Rectangle {
@@ -79,7 +91,7 @@ export component LibraryView inherits Rectangle {
             Text { x: 18px; width: parent.width - 36px; text: "Search instances"; color: #858c9e; font-family: root.body-font; font-size: 13px; vertical-alignment: center; visible: root.query == ""; }
             search-input := TextInput { x: 18px; width: parent.width - 36px; height: parent.height; text <=> root.query; color: #e9ebf1; font-family: root.body-font; font-size: 13px; vertical-alignment: center; single-line: true; }
         }
-        PillButton { x: parent.width - 158px; y: parent.narrow ? 94px : 22px; width: 158px; label: "+  New instance"; enabled: !root.busy; clicked => { root.create(); } }
+        PillButton { body-font: root.body-font; reduced-motion: root.reduced-motion; x: parent.width - 158px; y: parent.narrow ? 94px : 22px; width: 158px; label: "+  New instance"; enabled: !root.busy; clicked => { root.create(); } }
         hero := Rectangle {
             y: parent.narrow ? 148px : 108px; width: parent.width;
             height: content.narrow && root.height < 700px ? 176px : min(360px, max(200px, root.height * 0.37));
@@ -90,7 +102,7 @@ export component LibraryView inherits Rectangle {
             Text { x: 28px; y: parent.height - 169px; width: parent.width - 56px; height: 22px; text: root.has-selection ? "CONTINUE PLAYING" : "MAKE IT YOURS"; font-family: root.body-font; font-size: 11px; font-weight: 600; letter-spacing: 1.2px; color: #b1b8ca; }
             Text { x: 28px; y: parent.height - 140px; width: parent.width - 56px; height: 43px; text: root.selected-name; font-family: root.body-font; font-size: content.narrow ? 26px : 34px; font-weight: 700; color: #fafbff; overflow: elide; }
             Text { x: 28px; y: parent.height - 91px; width: parent.width - 56px; height: 22px; text: root.has-selection && root.selected-index < root.details.length ? root.details[root.selected-index] : "Create or select an instance to start playing."; font-family: root.body-font; font-size: 12px; color: #aeb5c7; overflow: elide; }
-            PillButton { x: 28px; y: parent.height - 59px; width: 130px; label: root.busy && root.has-selection ? "Preparing…" : "Play"; primary: true; enabled: root.has-selection && !root.busy; clicked => { root.play(); } }
+            PillButton { body-font: root.body-font; reduced-motion: root.reduced-motion; x: 28px; y: parent.height - 59px; width: 130px; label: root.busy && root.has-selection ? "Preparing…" : "Play"; primary: true; enabled: root.has-selection && !root.busy; clicked => { root.play(); } }
         }
         Text { y: hero.y + hero.height + 26px; height: 28px; width: parent.width; text: "Your instances"; font-family: root.body-font; font-size: 20px; font-weight: 600; color: #e7e9f0; }
         list := ScrollView {
@@ -98,25 +110,27 @@ export component LibraryView inherits Rectangle {
             height: max(70px, parent.height - self.y - (root.status == "" ? 4px : 34px));
             horizontal-scrollbar-policy: always-off;
             VerticalLayout { padding: 0px; spacing: 14px;
-                for row in ceil(root.names.length / (content.narrow ? 2 : 3)) : HorizontalLayout {
+                for row in ceil(root.filtered.length / (content.narrow ? 2 : 3)) : HorizontalLayout {
                     spacing: 14px;
                     for col in (content.narrow ? 2 : 3) : Rectangle {
-                        property <int> index: row * (content.narrow ? 2 : 3) + col;
-                        property <bool> valid: self.index < root.names.length;
+                        property <int> slot: row * (content.narrow ? 2 : 3) + col;
+                        property <bool> valid: self.slot < root.filtered.length;
+                        property <int> index: self.valid ? root.filtered[self.slot] : -1;
                         height: 142px;
-                        opacity: !self.valid ? 0 : root.query == "" || root.matches(root.names[self.index], root.query) ? 1 : 0;
-                        border-radius: 22px; border-width: 1px; border-color: self.index == root.selected-index ? #578bb576 : #ffffff17;
+                        opacity: self.valid ? 1 : 0;
+                        border-radius: 22px; border-width: 1px; border-color: card-focus.has-focus ? #8ec8ff : self.index == root.selected-index ? #578bb576 : #ffffff17;
                         background: row-touch.has-hover ? #1a1d25 : #12141b;
                         Rectangle { x: 20px; y: 19px; width: 36px; height: 36px; border-radius: 12px; background: #9e8ed71a;
                             Text { text: "◇"; color: #c4b5ec; font-size: 25px; horizontal-alignment: center; vertical-alignment: center; }
                         }
                         Text { x: 20px; y: 70px; width: parent.width - 40px; height: 25px; text: parent.valid ? root.names[parent.index] : ""; font-family: root.body-font; font-size: 15px; font-weight: 600; color: #e8eaf0; overflow: elide; }
-                        Text { x: 20px; y: 103px; width: parent.width - 64px; height: 20px; text: parent.index < root.details.length ? root.details[parent.index] : ""; font-family: root.body-font; font-size: 12px; color: #9299ab; overflow: elide; }
+                        Text { x: 20px; y: 103px; width: parent.width - 64px; height: 20px; text: parent.index >= 0 && parent.index < root.details.length ? root.details[parent.index] : ""; font-family: root.body-font; font-size: 12px; color: #9299ab; overflow: elide; }
                         Text { x: parent.width - 46px; y: 100px; width: 30px; height: 26px; text: parent.index == root.selected-index ? "●" : "›"; color: parent.index == root.selected-index ? #79b9f3 : #818a9f; horizontal-alignment: center; vertical-alignment: center; }
-                        row-touch := TouchArea { enabled: parent.valid && !root.busy && (root.query == "" || root.matches(root.names[parent.index], root.query)); mouse-cursor: self.enabled ? pointer : default; clicked => { root.select(parent.index); } }
+                        card-focus := FocusScope { enabled: parent.valid && !root.busy; key-pressed(event) => { if parent.valid && !root.busy && (event.text == Key.Return || event.text == " ") { root.select(parent.index); return accept; } reject } }
+                        row-touch := TouchArea { enabled: parent.valid && !root.busy; mouse-cursor: self.enabled ? pointer : default; clicked => { card-focus.focus(); root.select(parent.index); } }
                     }
                 }
-                if root.names.length == 0 : Text { height: 70px; text: "No instances yet. Create your first one above."; color: #a1a8b9; font-family: root.body-font; font-size: 14px; vertical-alignment: center; }
+                if root.filtered.length == 0 : Text { height: 70px; text: root.names.length == 0 ? "No instances yet. Create your first one above." : "No instances match your search."; color: #a1a8b9; font-family: root.body-font; font-size: 14px; vertical-alignment: center; }
             }
         }
 
