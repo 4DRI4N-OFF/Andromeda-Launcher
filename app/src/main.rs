@@ -19,7 +19,7 @@ mod startup_runtime;
 mod startup_sheen;
 mod theme_ui;
 use andromeda_core::settings::Settings;
-use slint::ComponentHandle;
+use slint::{ComponentHandle, Model};
 use std::{path::PathBuf, rc::Rc};
 slint::include_modules!();
 
@@ -116,6 +116,16 @@ fn prepare_main(
     let settings_path = dir.join("settings.json");
     let s = prepared.settings;
     let ui = MainWindow::new()?;
+    // refresh_instances replaces profile_titles with a new ModelRc. Keep that
+    // contract: in-place row edits do not invalidate this pure Slint callback.
+    ui.on_library_filter(|names, query| {
+        let query = query.to_lowercase();
+        let indices: Vec<i32> = (0..names.row_count())
+            .filter(|&i| names.row_data(i).is_some_and(|name| name.to_lowercase().contains(&query)))
+            .filter_map(|i| i32::try_from(i).ok())
+            .collect();
+        slint::ModelRc::new(slint::VecModel::from(indices))
+    });
     let _motion_timer = motion_ui::install(&ui);
     tracing::info!("Launcher UI created");
     ui.set_reduce_animations(s.reduce_animations);
@@ -823,4 +833,4 @@ fn prepare_main(
         _motion_timer,
         auth_cancel,
     })
-}
+                                               }

@@ -1,3 +1,4 @@
+import { LibraryView } from "library.slint";
 import { StartupLogo, StartupGlyph } from "startup.slint";
 import { ScrollView } from "std-widgets.slint";
 
@@ -390,9 +391,9 @@ export component MainWindow inherits Window {
     in property <float> startup-x: 0;
     in property <float> startup-y: 0;
     in property <float> startup-width: 720;
-    out property <float> startup-dest-x: 36 * root.design-scale;
-    out property <float> startup-dest-y: 50 * root.design-scale;
-    out property <float> startup-dest-width: root.width < 1142px ? max(110, 110 + (root.width / 1px - 860) * 0.567) : 270 * root.design-scale;
+    out property <float> startup-dest-x: root.active-tab == 0 ? 38 : 36 * root.design-scale;
+    out property <float> startup-dest-y: root.active-tab == 0 ? 51 : 50 * root.design-scale;
+    out property <float> startup-dest-width: root.active-tab == 0 ? (root.width < 1100px ? 134 : 180) : root.width < 1142px ? max(110, 110 + (root.width / 1px - 860) * 0.567) : 270 * root.design-scale;
     in property <image> intro-frame;
     in property <[string]> profile-titles;
     in property <[string]> profile-details;
@@ -475,6 +476,7 @@ export component MainWindow inherits Window {
     property <int> screen-index: settings-open || appearance-open ? 1 : 0;
     property <float> page-start: 0;
     out property <float> nav-position: pill.value;
+    pure callback library-filter([string], string) -> [int];
     out property <float> page-phase: page-progress;
     changed screen-index => { root.page-start = InteractionMotion.clock; }
     property <float> page-progress: reduce-animations ? 1 : InteractionMotion.sample(0, 1, 0, max(0, InteractionMotion.clock - page-start));
@@ -483,14 +485,15 @@ export component MainWindow inherits Window {
     }
     property <bool> motion-reduced: reduce-animations;
     changed motion-reduced => { InteractionMotion.reduced = root.reduce-animations; root.page-start = InteractionMotion.clock - 1; }
-    background: @linear-gradient(135deg, ThemePalette.bg, ThemePalette.bg-end);
-    Image { width: parent.width; height: parent.height;
+    background: #08090c;
+    Image { visible: root.active-tab != 0; width: parent.width; height: parent.height;
         source: ThemePalette.background-style == "dawn" ? @image-url("shell/dawn.png") : ThemePalette.background-style == "constellation" ? @image-url("shell/constellation.png") : @image-url("shell/galaxy.png");
         image-fit: cover;
     }
     Rectangle {
         width: 100%; height: 100%;
         Rectangle {
+            visible: root.active-tab != 0;
             x: 36px * root.design-scale; y: 30px * root.design-scale; width: parent.width - 72px * root.design-scale; height: 107px * root.design-scale;
             Image { visible: root.startup-glyphs.length == 0 && !root.startup-overlay; x: 0px; y: 20px * root.design-scale; width: root.startup-dest-width * 1px; height: 28px * root.design-scale; source: ThemePalette.background-style == "dawn" ? @image-url("branding/andromeda-dark.svg") : @image-url("branding/andromeda-light.svg"); image-fit: contain; colorize:ThemePalette.text-color; }
 
@@ -526,32 +529,26 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Home cards use live profile metadata; unavailable telemetry is explicit.
-        if root.active-tab == 0 : Rectangle {
-            x: 36px * root.design-scale; y: 170px * root.design-scale;
-            width: parent.width - 72px * root.design-scale; height: parent.height - 206px * root.design-scale;
-            ScrollView { x: 0px; y: 0px; width: parent.width; height: parent.height - 84px * root.design-scale; horizontal-scrollbar-policy: root.width >= 1600px && root.instance-names.length <= 3 ? always-off : as-needed; vertical-scrollbar-policy: always-off;
-                HorizontalLayout { spacing: 20px * root.design-scale; alignment: start;
-                    for name[i] in root.instance-names : HomeCard {
-                        scale: root.design-scale; index: i; height: min(610px * root.design-scale, root.height - 290px * root.design-scale);
-                        title: i < root.profile-titles.length ? root.profile-titles[i] : name;
-                        detail: i < root.profile-details.length ? root.profile-details[i] : "Minecraft 1.21.11";
-                        selected: i == root.instance-index; busy: root.busy;
-                        select => { if !root.busy { root.instance-index = i; root.instance-selected(i); } }
-                        play => { root.launch-offline(root.local-name); }
-                    }
-                    Rectangle { width: 367px * root.design-scale; height: min(610px * root.design-scale, root.height - 290px * root.design-scale); border-radius: 27px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.field.with-alpha(0.24);
-                        Image { width: 100%; height: 100%; image-fit: fill; source: @image-url("shell/new-card.svg"); colorize: ThemePalette.muted; }
-                        Image { x: (parent.width - self.width) / 2; y: parent.height / 2 - 25px * root.design-scale; width: 32px * root.design-scale; height: self.width; source: @image-url("tabler/plus.svg"); colorize: ThemePalette.muted; }
-                        Text { y: parent.height / 2 + 27px * root.design-scale; width: 100%; text: "New instance"; horizontal-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; font-weight: 600; color: ThemePalette.muted; }
-                        TouchArea { mouse-cursor: root.busy ? default : pointer; clicked => { if !root.busy { root.active-tab = 3; root.settings-section = 0; } } }
-                    }
+        // Library uses live models and the existing app actions. No telemetry is fabricated.
+        if root.active-tab == 0 : LibraryView {
+            width: parent.width; height: parent.height;
+            names: root.profile-titles; details: root.profile-details;
+            selected-index: root.instance-index >= 0 && root.instance-index < root.instance-names.length ? root.instance-index : -1; busy: root.busy;
+            reduced-motion: root.reduce-animations; player-name: root.local-name;
+            body-font: ThemePalette.body-font;
+            show-branding: !root.startup-overlay;
+            status: root.launch-status;
+            filter-indices(names, query) => { root.library-filter(names, query) }
+            select(index) => {
+                if !root.busy && index >= 0 && index < root.instance-names.length && index < root.profile-titles.length {
+                    root.instance-index = index;
+                    root.instance-selected(index);
                 }
             }
-            Rectangle { y: parent.height - self.height; width: 100%; height: 64px * root.design-scale; border-radius: 20px * root.design-scale; border-width: 1px; border-color: ThemePalette.border; background: ThemePalette.panel;
-                Rectangle { x: 26px * root.design-scale; y: 28px * root.design-scale; width: 8px * root.design-scale; height: self.width; border-radius: self.width / 2; background: root.busy ? ThemePalette.accent : #43dca1; }
-                Text { x: 48px * root.design-scale; width: parent.width - 72px * root.design-scale; height: parent.height; text: root.launch-status; overflow: elide; vertical-alignment: center; font-family: ThemePalette.body-font; font-size: 14px * root.design-scale; color: ThemePalette.muted; }
-            }
+            play => { if !root.busy && root.instance-index >= 0 && root.instance-index < root.instance-names.length && root.instance-index < root.profile-titles.length { root.launch-offline(root.local-name); } }
+            create => { if !root.busy { root.active-tab = 3; root.settings-section = 0; } }
+            navigate(index) => { if index >= 0 && index <= 3 { root.active-tab = index; } }
+            account => { root.active-tab = 4; }
         }
 
         // ---------------- play ----------------
@@ -856,13 +853,12 @@ export component MainWindow inherits Window {
         TouchArea { enabled: root.startup-overlay; }
     }
     // Keep the same Path instances at the destination: no SVG/Path rasterization swap.
-    if root.startup-glyphs.length > 0 : StartupLogo {
+    if root.startup-glyphs.length > 0 && (root.startup-overlay || root.active-tab != 0) : StartupLogo {
         property <float> dest-scale: root.startup-dest-width / 1120.24;
         x: (root.startup-overlay ? root.startup-x : root.startup-dest-x - 400.28 * self.dest-scale) * 1px;
         y: (root.startup-overlay ? root.startup-y : root.startup-dest-y + (28. - 75. * root.startup-dest-width / 836.) / 2. - 456.34 * self.dest-scale) * 1px;
         width: (root.startup-overlay ? root.startup-width : 1920. * self.dest-scale) * 1px; height: self.width * 1080 / 1920;
         glyphs: root.startup-glyphs; planet-x:480.96902125;planet-y:508.59999933;planet-size:160.76932338;
-        occlude:false;ink:root.startup-overlay ? root.startup-ink : ThemePalette.text-color;
+        occlude:false;ink:root.startup-overlay ? root.startup-ink : root.active-tab == 0 ? white : ThemePalette.text-color;
     }
 }
-
