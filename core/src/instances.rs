@@ -101,7 +101,10 @@ pub fn list(root: &Path) -> Result<Vec<Instance>> {
         if id.starts_with('.') || id == "trash" {
             continue;
         }
-        instances.push(read_instance(&entry.path(), &id)?);
+        // One damaged instance must not hide the others; it stays on disk untouched.
+        if let Ok(instance) = read_instance(&entry.path(), &id) {
+            instances.push(instance);
+        }
     }
     instances.sort_by(|a, b| {
         a.name
@@ -307,7 +310,8 @@ mod tests {
         assert!(create(&root, "One", "Bad-Name", 2048).is_err());
         let a = create(&root, "One", "Player", 2048).unwrap();
         fs::write(root.join(&a.id).join("instance.json"), b"{}").unwrap();
-        assert!(list(&root).is_err());
+        assert!(get(&root, &a.id).is_err());
+        assert!(list(&root).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }
     #[cfg(target_os = "windows")]

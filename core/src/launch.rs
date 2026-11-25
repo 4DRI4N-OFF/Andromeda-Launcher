@@ -125,7 +125,10 @@ fn extract_native(jar: &Path, dest: &Path) -> Result<()> {
             return Err(format!("Conflicting native DLL: {file}").into());
         }
         if !target.exists() {
-            fs::write(target, bytes)?;
+            // Write-then-rename so an interrupted write never leaves a truncated DLL behind.
+            let partial = dest.join(format!("{file}.part"));
+            fs::write(&partial, bytes)?;
+            fs::rename(&partial, &target)?;
         }
     }
     Ok(())
