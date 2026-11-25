@@ -180,11 +180,15 @@ fn main() -> Result<(), slint::PlatformError> {
                 let http = andromeda_core::auth::Http::new()?;
                 andromeda_core::session_store::refresh(&path, &http)
             })();
-            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-                return;
-            }
+            // Always clear the busy state; a cancelled restore keeps the saved session.
+            let cancelled = cancel.load(std::sync::atomic::Ordering::Relaxed);
             let _ = weak.upgrade_in_event_loop(move |ui| {
                 ui.set_auth_busy(false);
+                if cancelled {
+                    ui.set_use_microsoft(false);
+                    ui.set_account_status("Restore cancelled. Your protected session was kept.".into());
+                    return;
+                }
                 match result {
                     Ok(session) => {
                         ui.set_use_microsoft(true);
