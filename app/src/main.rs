@@ -422,11 +422,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let last_pct = std::sync::atomic::AtomicU32::new(u32::MAX);
         let slot = std::sync::Mutex::new(install_weak.clone());
         let progress = move |phase: &str, done: u64, total: u64| {
-            let pct = if total == 0 {
-                0
-            } else {
-                (done * 100 / total).min(100) as u32
-            };
+            let pct = (done * 100).checked_div(total).unwrap_or(0).min(100) as u32;
             if last_pct.swap(pct, std::sync::atomic::Ordering::Relaxed) == pct {
                 return;
             }
