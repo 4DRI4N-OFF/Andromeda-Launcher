@@ -23,18 +23,7 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Clippy
-        shell: bash
-        run: |
-          set +e
-          cargo clippy --workspace --all-targets --locked -- -D warnings > clippy.out 2>&1
-          code=$?
-          set -e
-          sed 's/\x1b\[[0-9;]*m//g' clippy.out > clippy.plain
-          total=$(wc -l < clippy.plain)
-          flat=$(tail -n 130 clippy.plain | tr '\n' '~')
-          echo "::notice::clippy exit=$code total=$total"
-          echo "::error::CLIPPY-TAIL ${flat}"
-          exit $code
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
         run: cargo test --workspace --locked
       - name: Build
