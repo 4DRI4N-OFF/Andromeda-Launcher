@@ -21,11 +21,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: Check formatting
-        shell: bash
-        run: |
-          cargo fmt --all -- --check > fmt.diff 2>&1 || true
-          head -n 150 fmt.diff | while IFS= read -r line; do echo "::error::$line"; done
-          cargo fmt --all -- --check
+        run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
