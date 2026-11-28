@@ -21,7 +21,14 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        shell: bash
+        run: |
+          cargo fmt --all -- --check > fmt.diff 2>&1 || true
+          sed 's/\x1b\[[0-9;]*m//g' fmt.diff > fmt.plain
+          echo "::notice::fmt lines=$(wc -l < fmt.plain) diffheaders=$(grep -ac 'Diff in' fmt.plain)"
+          grep -a 'Diff in' fmt.plain | sort -u | head -n 40 | while IFS= read -r line; do echo "::error::FILE $line"; done
+          grep -a -E '^[+-]' fmt.plain | head -n 140 | while IFS= read -r line; do echo "::error::CHANGE $line"; done
+          cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
