@@ -343,10 +343,13 @@ fn main() -> Result<(), slint::PlatformError> {
         let game_dir = selected_game.and_then(Result::ok);
         let memory = selected.as_ref().map(|i| i.memory_mb).unwrap_or(2048);
         ui.set_launch_busy(true);
-        ui.set_launch_status(format!(
-            "Preparing installed vanilla {}...",
-            andromeda_core::launch::VERSION
-        ).into());
+        ui.set_launch_status(
+            format!(
+                "Preparing installed vanilla {}...",
+                andromeda_core::launch::VERSION
+            )
+            .into(),
+        );
         let weak = launch_weak.clone();
         let root = vanilla_dir.clone();
         let name = name.to_string();
