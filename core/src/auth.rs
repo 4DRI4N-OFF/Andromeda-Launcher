@@ -105,7 +105,7 @@ impl Http {
         reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(25))
             .redirect(reqwest::redirect::Policy::none())
-            .user_agent("Andromeda/0.0.1")
+            .user_agent(format!("Andromeda/{}", env!("CARGO_PKG_VERSION")))
             .build()
             .map(Self)
             .map_err(|_| AuthError::Network)

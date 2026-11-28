@@ -31,7 +31,20 @@ impl Settings {
             fs::create_dir_all(dir)?;
         }
         let json = serde_json::to_string_pretty(self).map_err(io::Error::other)?;
-        fs::write(path, json)
+        // Write beside the target, flush, then rename: a crash mid-write can
+        // never truncate the previous settings file.
+        let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+        let mut file = fs::File::create(&tmp)?;
+        io::Write::write_all(&mut file, json.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        match fs::rename(&tmp, path) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                let _ = fs::remove_file(&tmp);
+                Err(e)
+            }
+        }
     }
 }
 
@@ -65,6 +78,28 @@ mod tests {
         let p = dir.join("settings.json");
         fs::write(&p, "{ esto no es json").unwrap();
         assert_eq!(Settings::load(&p), Settings::default());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn save_replaces_existing_file_and_leaves_no_temp_behind() {
+        let dir = std::env::temp_dir().join("andromeda-test-atomic");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("settings.json");
+        fs::write(&p, "{\"corrupt\": true").unwrap();
+        let s = Settings {
+            reduce_animations: true,
+            dark_mode: true,
+        };
+        s.save(&p).unwrap();
+        assert_eq!(Settings::load(&p), s);
+        let leftovers: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "{leftovers:?}");
         let _ = fs::remove_dir_all(dir);
     }
 }

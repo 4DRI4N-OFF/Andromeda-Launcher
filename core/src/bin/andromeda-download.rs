@@ -12,10 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
         }
         Some("install") if args.len() == 2 => {
-            let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .ok_or("Missing workspace root")?
-                .join("data/vanilla");
+            let root = andromeda_core::paths::data_dir().join("vanilla");
             println!(
                 "{}",
                 serde_json::to_string_pretty(&d.install(&root, &args[1])?)?

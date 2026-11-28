@@ -69,7 +69,8 @@ fn read_instance(dir: &Path, id: &str) -> Result<Instance> {
         return Err("Invalid instance metadata file".into());
     }
     let instance: Instance = serde_json::from_slice(&fs::read(dir.join("instance.json"))?)?;
-    if instance.schema != SCHEMA || instance.id != id || instance.version != "1.21.11" {
+    let expected = crate::launch::VERSION;
+    if instance.schema != SCHEMA || instance.id != id || instance.version != expected {
         return Err("Unsupported or mismatched instance metadata".into());
     }
     validate_name(&instance.name)?;
@@ -143,7 +144,7 @@ pub fn create(root: &Path, name: &str, local_name: &str, memory_mb: u32) -> Resu
         schema: SCHEMA,
         id: unique_id()?,
         name: name.trim().to_owned(),
-        version: "1.21.11".into(),
+        version: crate::launch::VERSION.into(),
         local_name: local_name.into(),
         memory_mb,
     };
@@ -232,6 +233,13 @@ pub fn trash(root: &Path, id: &str) -> Result<PathBuf> {
         return Err("Trash destination already exists".into());
     }
     fs::rename(root.join(id), &target)?;
+    // Record the order so the newest trash stays restorable after a restart.
+    let mut ids = read_manifest(root);
+    ids.retain(|x| x != id && trash.join(x).is_dir());
+    ids.push(id.to_owned());
+    if let Err(e) = write_manifest(root, &ids) {
+        tracing::warn!("Could not update trash manifest: {e}");
+    }
     Ok(target)
 }
 pub fn restore(root: &Path, id: &str) -> Result<Instance> {
@@ -244,7 +252,65 @@ pub fn restore(root: &Path, id: &str) -> Result<Instance> {
         return Err("An active instance already uses this identifier".into());
     }
     fs::rename(source, root.join(id))?;
+    if manifest_path(root).exists() {
+        let mut ids = read_manifest(root);
+        ids.retain(|x| x != id);
+        if let Err(e) = write_manifest(root, &ids) {
+            tracing::warn!("Could not update trash manifest: {e}");
+        }
+    }
     Ok(instance)
+}
+
+const TRASH_MANIFEST: &str = ".manifest.json";
+
+fn manifest_path(root: &Path) -> PathBuf {
+    root.join("trash").join(TRASH_MANIFEST)
+}
+
+/// Trash order, oldest first. Invalid or vanished ids are dropped.
+fn read_manifest(root: &Path) -> Vec<String> {
+    let Ok(bytes) = fs::read(manifest_path(root)) else {
+        return Vec::new();
+    };
+    let ids: Vec<String> = serde_json::from_slice(&bytes).unwrap_or_default();
+    ids.into_iter()
+        .filter(|id| validate_id(id).is_ok())
+        .collect()
+}
+
+fn write_manifest(root: &Path, ids: &[String]) -> Result<()> {
+    let path = manifest_path(root);
+    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+    fs::write(&tmp, serde_json::to_vec_pretty(ids)?)?;
+    if let Err(e) = fs::rename(&tmp, &path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.into());
+    }
+    Ok(())
+}
+
+/// Most recently trashed instance that still exists on disk. Read fresh from
+/// disk on every call, so restore keeps working after an app restart.
+pub fn last_trashed(root: &Path) -> Option<String> {
+    let trash = root.join("trash");
+    for id in read_manifest(root).iter().rev() {
+        if trash.join(id).is_dir() {
+            return Some(id.clone());
+        }
+    }
+    // No usable manifest (older build or manual move): scan the folder so
+    // nothing trashed ever becomes unreachable.
+    let entries = fs::read_dir(&trash).ok()?;
+    let mut ids: Vec<String> = Vec::new();
+    for entry in entries.flatten() {
+        let id = entry.file_name().to_string_lossy().into_owned();
+        if validate_id(&id).is_ok() && entry.file_type().is_ok_and(|t| t.is_dir()) {
+            ids.push(id);
+        }
+    }
+    ids.sort();
+    ids.pop()
 }
 
 #[cfg(test)]
@@ -368,6 +434,37 @@ mod tests {
             fs::read(root.join(&a.id).join("keep")).unwrap(),
             b"existing"
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn trash_restore_order_survives_a_restart() {
+        let root = temp();
+        let a = create(&root, "One", "Player", 2048).unwrap();
+        let b = create(&root, "Two", "Player", 2048).unwrap();
+        assert!(last_trashed(&root).is_none());
+        trash(&root, &a.id).unwrap();
+        trash(&root, &b.id).unwrap();
+        // Every lookup reads from disk only: this is exactly what a fresh
+        // process sees after a restart.
+        assert_eq!(last_trashed(&root).as_deref(), Some(b.id.as_str()));
+        let newest = last_trashed(&root).unwrap();
+        restore(&root, &newest).unwrap();
+        assert_eq!(last_trashed(&root).as_deref(), Some(a.id.as_str()));
+        let oldest = last_trashed(&root).unwrap();
+        restore(&root, &oldest).unwrap();
+        assert!(last_trashed(&root).is_none());
+        assert_eq!(list(&root).unwrap().len(), 2);
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn trash_without_a_manifest_still_restores() {
+        let root = temp();
+        let a = create(&root, "One", "Player", 2048).unwrap();
+        trash(&root, &a.id).unwrap();
+        fs::remove_file(root.join("trash").join(".manifest.json")).unwrap();
+        assert_eq!(last_trashed(&root).as_deref(), Some(a.id.as_str()));
+        restore(&root, &a.id).unwrap();
+        assert!(last_trashed(&root).is_none());
         fs::remove_dir_all(root).unwrap();
     }
 }

@@ -1,11 +1,8 @@
 //! Manage isolated local instances without touching the default game folder.
-use andromeda_core::{instances, launch};
+use andromeda_core::{instances, launch, paths};
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    let data = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .ok_or("Missing workspace")?
-        .join("data");
+    let data = paths::data_dir();
     let root = data.join("instances");
     match args.first().map(String::as_str) {
         Some("list") if args.len()==1 => println!("{}", serde_json::to_string_pretty(&instances::list(&root)?)?),

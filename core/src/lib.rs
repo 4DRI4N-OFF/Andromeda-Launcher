@@ -2,6 +2,7 @@
 pub mod auth;
 pub mod instances;
 pub mod launch;
+pub mod paths;
 pub mod session_store;
 pub mod settings;
 pub mod vanilla;

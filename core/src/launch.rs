@@ -10,7 +10,7 @@ use std::{
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-const VERSION: &str = "1.21.11";
+pub const VERSION: &str = "1.21.11";
 
 pub struct LaunchPlan {
     pub java: PathBuf,
@@ -175,7 +175,7 @@ fn prepare_identity(
     session: Option<&crate::auth::Session>,
 ) -> Result<LaunchPlan> {
     if version != VERSION {
-        return Err("Phase 2 currently supports installed vanilla 1.21.11 only".into());
+        return Err(format!("Phase 2 currently supports installed vanilla {VERSION} only").into());
     }
     if !(512..=8192).contains(&memory_mb) {
         return Err("Memory must be between 512 and 8192 MB".into());
