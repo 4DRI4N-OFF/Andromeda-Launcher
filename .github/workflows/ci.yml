@@ -30,9 +30,10 @@ jobs:
           code=$?
           set -e
           sed 's/\x1b\[[0-9;]*m//g' clippy.out > clippy.plain
-          grep -a -E '^(error|warning)(\[|:)|^ *--> |^thread ' -A 2 clippy.plain | head -n 300 > snippet.txt || true
-          echo "::notice::clippy exit=$code total=$(wc -l < clippy.out) snippet=$(wc -l < snippet.txt)"
-          while IFS= read -r line; do echo "::error::$line"; done < snippet.txt || true
+          total=$(wc -l < clippy.plain)
+          flat=$(tail -n 130 clippy.plain | tr '\n' '~')
+          echo "::notice::clippy exit=$code total=$total"
+          echo "::error::CLIPPY-TAIL ${flat}"
           exit $code
       - name: Tests
         run: cargo test --workspace --locked
