@@ -7,11 +7,11 @@ cargo run -p andromeda-core --bin andromeda-download -- list
 cargo run -p andromeda-core --bin andromeda-download -- install 1.21.11
 ```
 
-Files stay under `data/vanilla` in this source workspace. This is a development path, not a portable installed-app data location. Downloads, runtime binaries and Mojang assets are ignored by Git. No account credentials are required for the download step. Playing Minecraft requires the relevant license/account; downloads do not grant ownership.
+Files stay under `data/vanilla` of the source workspace in debug builds (release builds use the per-user platform folder; see the README). This is a development path, not a portable installed-app data location. Downloads, runtime binaries and Mojang assets are ignored by Git. No account credentials are required for the download step. Playing Minecraft requires the relevant license/account; downloads do not grant ownership.
 
 The installer gets version metadata from Mojang, verifies its SHA-1, downloads the client JAR, Windows libraries/native archives, logging config, asset index/objects and Mojang's Windows x64 Java runtime. Every artifact with metadata is SHA-1/size checked before publication. Downloads use `.part` files, three attempts, bounded timeouts and eight workers. Existing valid files are reused; bad files are replaced after a verified download. A failed install leaves reusable verified files but no new success receipt. SHA-1 here follows Mojang's integrity metadata, not a signature or general proof of authenticity.
 
-Run only one installer at a time for a data folder. There is no interprocess install lock, cancellation UI, progress bar, proxy setting, ranged resume or disk-space estimate yet. Interrupted files restart from the beginning. The current rule handling targets Windows x64 and conservatively skips unknown OS-version rules. Other platforms, older legacy asset layouts, runtime link entries and arbitrary old releases are not guaranteed. Only 1.21.11 has had a live end-to-end install check.
+Run only one installer at a time for a data folder. There is no interprocess install lock, cancellation UI, proxy setting, ranged resume or disk-space estimate yet. The UI reports per-phase file progress but cannot cancel a running install. Interrupted files restart from the beginning. The current rule handling targets Windows x64 and conservatively skips unknown OS-version rules. Other platforms, older legacy asset layouts, runtime link entries and arbitrary old releases are not guaranteed. Only 1.21.11 has had a live end-to-end install check.
 
 ## Validation on Windows
 

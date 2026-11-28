@@ -28,3 +28,21 @@ jobs:
         run: cargo test --workspace --locked
       - name: Build
         run: cargo build --workspace --locked
+      - name: Build core (release cfg)
+        run: cargo build -p andromeda-core --release --locked
+
+  core-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy (core)
+        run: cargo clippy -p andromeda-core --all-targets --locked -- -D warnings
+      - name: Tests (core)
+        run: cargo test -p andromeda-core --locked
+      - name: Build core (release cfg)
+        run: cargo build -p andromeda-core --release --locked
