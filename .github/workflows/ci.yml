@@ -23,7 +23,12 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        shell: bash
+        run: |
+          cargo clippy --workspace --all-targets --locked -- -D warnings > clippy.out 2>&1
+          code=$?
+          grep -a -E '^(error|warning)|--> ' clippy.out | head -n 160 | while IFS= read -r line; do echo "::error::$line"; done
+          exit $code
       - name: Tests
         run: cargo test --workspace --locked
       - name: Build
