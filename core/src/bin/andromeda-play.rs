@@ -3,7 +3,10 @@ use andromeda_core::{launch, paths};
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if !(args.len() == 2 || args.len() == 3 && args[2] == "--dry-run") {
-        let usage = format!("Usage: andromeda-play {} LOCAL_NAME [--dry-run]", launch::VERSION);
+        let usage = format!(
+            "Usage: andromeda-play {} LOCAL_NAME [--dry-run]",
+            launch::VERSION
+        );
         return Err(usage.into());
     }
     let root = paths::data_dir().join("vanilla");
