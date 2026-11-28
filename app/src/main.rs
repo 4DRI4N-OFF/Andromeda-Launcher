@@ -67,7 +67,7 @@ fn refresh_instances(
     labels.extend(items.iter().map(|i| i.name.clone().into()));
     *shared.lock().expect("instance state") = items;
     ui.set_instance_names(slint::ModelRc::new(slint::VecModel::from(labels)));
-    ui.set_instance_index(index);
+    ui.set_instance_index(index as i32);
     if let Some(name) = local_name {
         ui.set_local_name(name.into());
     }
@@ -346,7 +346,7 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_launch_status(format!(
             "Preparing installed vanilla {}...",
             andromeda_core::launch::VERSION
-        ));
+        ).into());
         let weak = launch_weak.clone();
         let root = vanilla_dir.clone();
         let name = name.to_string();
@@ -411,7 +411,7 @@ fn main() -> Result<(), slint::PlatformError> {
         ui.set_install_busy(true);
         ui.set_install_progress(0.0);
         let version = andromeda_core::launch::VERSION;
-        ui.set_launch_status(format!("Preparing to install vanilla {version}..."));
+        ui.set_launch_status(format!("Preparing to install vanilla {version}...").into());
         let weak = install_weak.clone();
         let root = install_root.clone();
         // Throttle UI updates to whole-percent changes: install reports after
