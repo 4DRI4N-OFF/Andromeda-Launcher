@@ -8,10 +8,10 @@ Each instance has its own `data/instances/<id>/instance.json` and `game` directo
 - Enter a new instance name and local player name, then **Create**. New instances use installed vanilla 1.21.11 and 2048 MB.
 - Select an instance, enter the copy's name, then **Duplicate**. Saves, options and other game-folder files are copied, not linked. Launcher logs and the old lock file are excluded.
 - **Move to trash**, then **Confirm trash**, moves the complete instance to `data/instances/trash/<id>`. It never permanently deletes saves.
-- **Undo last trash** restores the latest instance trashed in the current app session. Older trashed instances can be restored with the CLI.
-- After a management operation, the selector returns to the default profile. Select the intended instance before playing.
+- **Undo last trash** restores the most recently trashed instance, reading the trash manifest from disk, so it also works after an app restart. Repeating it restores older trashed instances newest-first; any instance can still be restored by id with the CLI.
+- After a management operation the selector keeps the current instance when it still exists; a newly created or duplicated instance becomes the selection.
 
-The local name recorded at creation is loaded when selecting an instance. Editing the player field affects that launch, not the saved instance metadata. Selection and the last-trash shortcut are session-only.
+The local name recorded at creation is loaded when selecting an instance. Editing the player field affects that launch, not the saved instance metadata. The list refresh keeps the current selection when the instance still exists; the trash restore order is persisted on disk.
 
 ## CLI
 

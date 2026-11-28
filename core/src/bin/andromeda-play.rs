@@ -1,14 +1,15 @@
 //! Local offline profile. Use an account/license you own; no online authentication.
-use andromeda_core::launch;
+use andromeda_core::{launch, paths};
 fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if !(args.len() == 2 || args.len() == 3 && args[2] == "--dry-run") {
-        return Err("Usage: andromeda-play 1.21.11 LOCAL_NAME [--dry-run]".into());
+        let usage = format!(
+            "Usage: andromeda-play {} LOCAL_NAME [--dry-run]",
+            launch::VERSION
+        );
+        return Err(usage.into());
     }
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .ok_or("Missing workspace")?
-        .join("data/vanilla");
+    let root = paths::data_dir().join("vanilla");
     let plan = launch::prepare(&root, &args[0], &args[1], 2048)?;
     if args.len() == 3 {
         println!(

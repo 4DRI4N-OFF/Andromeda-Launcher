@@ -6,7 +6,10 @@ use std::{
     fs,
     io::{Read, Write},
     path::{Component, Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 
@@ -23,6 +26,41 @@ struct Item {
     sha1: String,
     size: u64,
     path: PathBuf,
+}
+/// One install phase: files verified so far out of the files announced for
+/// it. Reports (phase, done, total) after every file so a caller can show
+/// live progress without blocking the download workers.
+struct Phase<F> {
+    name: &'static str,
+    done: AtomicU64,
+    total: AtomicU64,
+    report: F,
+}
+impl<F: Fn(&str, u64, u64) + Sync> Phase<F> {
+    fn new(name: &'static str, report: F) -> Self {
+        Self {
+            name,
+            done: AtomicU64::new(0),
+            total: AtomicU64::new(0),
+            report,
+        }
+    }
+    fn emit(&self) {
+        (self.report)(
+            self.name,
+            self.done.load(Ordering::Relaxed),
+            self.total.load(Ordering::Relaxed),
+        );
+    }
+    /// Announce how many files this phase is about to verify.
+    fn expect(&self, files: u64) {
+        self.total.fetch_add(files, Ordering::Relaxed);
+        self.emit();
+    }
+    fn file_done(&self) {
+        self.done.fetch_add(1, Ordering::Relaxed);
+        self.emit();
+    }
 }
 fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
     v[key]
@@ -79,7 +117,7 @@ impl Downloader {
     pub fn new() -> Result<Self> {
         Ok(Self {
             client: Client::builder()
-                .user_agent("AndromedaLauncher/0.0.1")
+                .user_agent(format!("AndromedaLauncher/{}", env!("CARGO_PKG_VERSION")))
                 .connect_timeout(Duration::from_secs(20))
                 .timeout(Duration::from_secs(180))
                 .build()?,
@@ -144,8 +182,13 @@ impl Downloader {
         }
         Err(format!("Download failed after 3 attempts: {}: {last}", i.url).into())
     }
-    fn batch(&self, items: Vec<Item>) -> Result<usize> {
+    fn batch<F: Fn(&str, u64, u64) + Sync>(
+        &self,
+        items: Vec<Item>,
+        phase: &Phase<F>,
+    ) -> Result<usize> {
         let count = items.len();
+        phase.expect(count as u64);
         let queue = Arc::new(Mutex::new(items.into_iter()));
         let errors = Arc::new(Mutex::new(Vec::<String>::new()));
         std::thread::scope(|s| {
@@ -162,6 +205,7 @@ impl Downloader {
                         errors.lock().expect("errors lock").push(e.to_string());
                         break;
                     }
+                    phase.file_done();
                 });
             }
         });
@@ -176,6 +220,18 @@ impl Downloader {
     }
     /// Windows x64 only. All paths must be under the caller's project-owned directory.
     pub fn install(&self, root: &Path, version: &str) -> Result<Value> {
+        self.install_with_progress(root, version, &|_, _, _| {})
+    }
+
+    /// Same as [`Self::install`], reporting (phase, done, total) to `progress`
+    /// after every verified file. Existing valid files are skipped, so a
+    /// re-run also repairs a damaged installation.
+    pub fn install_with_progress(
+        &self,
+        root: &Path,
+        version: &str,
+        progress: &(dyn Fn(&str, u64, u64) + Sync),
+    ) -> Result<Value> {
         path(root, version)?;
         if root.join("install-receipt.json").exists() {
             fs::remove_file(root.join("install-receipt.json"))?;
@@ -188,7 +244,10 @@ impl Downloader {
             .find(|v| v["id"] == version)
             .ok_or("Unknown version")?;
         let metadata = path(root, &format!("versions/{version}/{version}.json"))?;
+        let phase = Phase::new("version metadata", progress);
+        phase.expect(1);
         self.download(&item(entry, metadata.clone())?)?;
+        phase.file_done();
         let v: Value = serde_json::from_slice(&fs::read(metadata)?)?;
         let mut items = vec![item(
             &v["downloads"]["client"],
@@ -213,14 +272,18 @@ impl Downloader {
                 path(&root.join("assets/log_configs"), text(log, "id")?)?,
             )?);
         }
-        println!("Downloading client and libraries");
-        let libraries = self.batch(items)?;
+        let _ = writeln!(std::io::stdout(), "Downloading client and libraries");
+        let phase = Phase::new("client and libraries", progress);
+        let libraries = self.batch(items, &phase)?;
         let ai = &v["assetIndex"];
         let index = path(
             &root.join("assets/indexes"),
             &format!("{}.json", text(ai, "id")?),
         )?;
+        let phase = Phase::new("asset index", progress);
+        phase.expect(1);
         self.download(&item(ai, index.clone())?)?;
+        phase.file_done();
         let assets: Value = serde_json::from_slice(&fs::read(index)?)?;
         let mut objects = std::collections::HashMap::new();
         for obj in assets["objects"]
@@ -241,8 +304,13 @@ impl Downloader {
                 )?,
             );
         }
-        println!("Downloading {} verified asset objects", objects.len());
-        let assets = self.batch(objects.into_values().collect())?;
+        let _ = writeln!(
+            std::io::stdout(),
+            "Downloading {} verified asset objects",
+            objects.len()
+        );
+        let phase = Phase::new("assets", progress);
+        let assets = self.batch(objects.into_values().collect(), &phase)?;
         let component = text(&v["javaVersion"], "component")?;
         let runtimes = self.json(JAVA)?;
         let runtime = runtimes["windows-x64"][component]
@@ -251,7 +319,10 @@ impl Downloader {
             .ok_or("Java runtime not available for Windows x64")?;
         let java_root = path(&root.join("runtime"), component)?;
         let runtime_manifest = java_root.join("manifest.json");
+        let phase = Phase::new("java runtime", progress);
+        phase.expect(1);
         self.download(&item(&runtime["manifest"], runtime_manifest.clone())?)?;
+        phase.file_done();
         let runtime: Value = serde_json::from_slice(&fs::read(runtime_manifest)?)?;
         let mut files = Vec::new();
         for (name, f) in runtime["files"]
@@ -265,8 +336,8 @@ impl Downloader {
                 _ => return Err("Unsupported runtime link or entry type".into()),
             }
         }
-        println!("Downloading Java runtime");
-        let java_files = self.batch(files)?;
+        let _ = writeln!(std::io::stdout(), "Downloading Java runtime");
+        let java_files = self.batch(files, &phase)?;
         let java = java_root.join("bin/java.exe");
         if !java.is_file() {
             return Err("Java executable missing".into());

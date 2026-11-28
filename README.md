@@ -23,9 +23,9 @@ A Minecraft Java launcher for Windows, written in Rust with a native Slint inter
 
 ## What works today (main)
 
-- Play installed vanilla (1.21.11) offline with a local profile, from the UI or the CLI.
+- Install or repair the vanilla (1.21.11) game files from the UI with live progress, then play offline with a local profile, from the UI or the CLI.
 - Verified downloader for vanilla versions and Java.
-- Isolated instances: create, deep-duplicate, and a recoverable trash with restore.
+- Isolated instances: create, deep-duplicate, and a recoverable trash whose restore survives restarts.
 - Animated logo intro; click skips it, and the saved Reduce animations setting skips it entirely.
 - Dark mode and reduced-motion preference, persisted between runs.
 - Microsoft sign-in with protected session storage is integrated; phase 4 validation is still in progress.
@@ -37,7 +37,7 @@ A Minecraft Java launcher for Windows, written in Rust with a native Slint inter
 
 These live on unmerged feature branches and are not on main yet:
 
-- **Theme engine.** One layout with three themes: Horizonte (deep-space violet), Alba (light) and Cartógrafo (charcoal and bronze), with animated switching.
+- **Theme engine.** One layout with three themes: Horizonte (deep-space violet), Alba (light) and Cartógrafo (charcoal and bronze), with animated switching. That branch also custom-draws buttons, rows, fields and switches so the launcher's own theme applies regardless of the Windows theme; main still uses Slint's standard widgets.
 - **Full version catalog.** Every Minecraft release, snapshot and old alpha/beta with filters, and exactly one loader per instance (Vanilla, Fabric, Quilt, Forge, NeoForge and legacy chains), limited to loader versions compatible with the chosen game version. Install and launch-plan generation are verified on a Windows PC; a full in-game launch from this branch is not verified yet.
 - **Native splash and startup transition** into the main window.
 - **Mod manager**, planned after the version catalog lands.
@@ -45,7 +45,6 @@ These live on unmerged feature branches and are not on main yet:
 ## Under the hood
 
 - **Microsoft sign-in security.** Authorization code + S256 PKCE against Microsoft's hosted page in an isolated WebView2 window; no client secret, no injected JavaScript, no credential capture. Only the refresh token is persisted, protected with Windows current-user DPAPI plus app-specific entropy. Access tokens stay in memory, secret-bearing types have no `Debug`/`Serialize`, and logs are scanned for token-shaped values. Details and limits in [PHASE4.md](PHASE4.md).
-- **Custom-drawn controls.** Buttons, rows, fields and switches are drawn in Slint instead of platform widgets, so the launcher's own theme applies regardless of the Windows theme. `ScrollView` is the only standard widget left.
 - **The intro is data, not a video player.** 181 lossless QOI frames decoded straight into Slint's RGBA buffer, timed by elapsed time so a busy machine does not stretch it. Details in [INTRO.md](INTRO.md).
 - **Instance isolation.** Each instance keeps its own game directory; duplicating is a deep copy, and trashing moves instead of deleting, so a mistake is recoverable. See [PHASE3.md](PHASE3.md).
 - **Translation-ready.** All UI strings go through Slint's `@tr()`, so catalogs can be added without touching layout. English is the only supplied locale today.
@@ -64,7 +63,7 @@ cargo build --workspace
 
 UI: `target/debug/andromeda.exe`. Downloader: `target/debug/andromeda-download.exe list` or `install 1.21.11`.
 
-Runtime data stays in the source workspace's `data` folder (including protected auth session data under `data/auth`). Do not commit downloaded game assets, Java binaries, settings, logs or auth/session data.
+Debug builds keep runtime data in the source workspace's `data` folder (including protected auth session data under `data/auth`); release builds use the per-user platform folder (`%APPDATA%\Andromeda` on Windows). Set `ANDROMEDA_DATA_DIR` to override that location in any build. Do not commit downloaded game assets, Java binaries, settings, logs or auth/session data.
 
 ## Documentation
 
