@@ -29,7 +29,8 @@ jobs:
           cargo clippy --workspace --all-targets --locked -- -D warnings > clippy.out 2>&1
           code=$?
           set -e
-          grep -a -E '^(error|warning)|--> |^thread ' clippy.out | head -n 160 > snippet.txt || true
+          sed 's/\x1b\[[0-9;]*m//g' clippy.out > clippy.plain
+          grep -a -E '^(error|warning)(\[|:)|^ *--> |^thread ' -A 2 clippy.plain | head -n 300 > snippet.txt || true
           echo "::notice::clippy exit=$code total=$(wc -l < clippy.out) snippet=$(wc -l < snippet.txt)"
           while IFS= read -r line; do echo "::error::$line"; done < snippet.txt || true
           exit $code
