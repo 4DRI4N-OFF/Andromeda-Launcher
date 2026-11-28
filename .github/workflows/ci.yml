@@ -25,9 +25,13 @@ jobs:
       - name: Clippy
         shell: bash
         run: |
+          set +e
           cargo clippy --workspace --all-targets --locked -- -D warnings > clippy.out 2>&1
           code=$?
-          grep -a -E '^(error|warning)|--> ' clippy.out | head -n 160 | while IFS= read -r line; do echo "::error::$line"; done
+          set -e
+          grep -a -E '^(error|warning)|--> |^thread ' clippy.out | head -n 160 > snippet.txt || true
+          echo "::notice::clippy exit=$code total=$(wc -l < clippy.out) snippet=$(wc -l < snippet.txt)"
+          while IFS= read -r line; do echo "::error::$line"; done < snippet.txt || true
           exit $code
       - name: Tests
         run: cargo test --workspace --locked
