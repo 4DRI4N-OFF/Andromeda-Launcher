@@ -1,4 +1,4 @@
-import { Switch, LineEdit, Button, ComboBox } from "std-widgets.slint";
+import { Switch, LineEdit, Button, ComboBox, ProgressIndicator } from "std-widgets.slint";
 
 export component MainWindow inherits Window {
     title: @tr("Andromeda Launcher");
@@ -24,6 +24,9 @@ export component MainWindow inherits Window {
     in-out property <string> local-name: "Player";
     in-out property <bool> launch-busy: false;
     in-out property <string> launch-status: "Choose a profile, then Play. Installed files are verified before launch.";
+    in-out property <bool> install-busy: false;
+    in-out property <float> install-progress: 0.0;
+    callback install-game();
 
     background: dark-mode ? #0b1020 : #f3f5fb;
 
@@ -51,36 +54,47 @@ export component MainWindow inherits Window {
             ComboBox {
                 model: root.instance-names;
                 current-index <=> root.instance-index;
-                enabled: !root.launch-busy && !root.auth-busy;
+                enabled: !root.launch-busy && !root.auth-busy && !root.install-busy;
                 selected(value) => { root.instance-selected(root.instance-index); }
             }
             HorizontalLayout {
                 spacing: 8px;
-                LineEdit { text <=> root.instance-name; placeholder-text: @tr("Instance name"); enabled: !root.launch-busy && !root.auth-busy; }
-                Button { text: @tr("Create"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.manage-instance("create", root.instance-name); } }
-                Button { text: @tr("Duplicate"); enabled: !root.launch-busy && !root.auth-busy && root.instance-index > 0; clicked => { root.manage-instance("duplicate", root.instance-name); } }
+                LineEdit { text <=> root.instance-name; placeholder-text: @tr("Instance name"); enabled: !root.launch-busy && !root.auth-busy && !root.install-busy; }
+                Button { text: @tr("Create"); enabled: !root.launch-busy && !root.auth-busy && !root.install-busy; clicked => { root.manage-instance("create", root.instance-name); } }
+                Button { text: @tr("Duplicate"); enabled: !root.launch-busy && !root.auth-busy && !root.install-busy && root.instance-index > 0; clicked => { root.manage-instance("duplicate", root.instance-name); } }
             }
             HorizontalLayout {
                 spacing: 8px;
-                Button { text: root.trash-armed ? @tr("Confirm trash") : @tr("Move to trash"); enabled: !root.launch-busy && !root.auth-busy && root.instance-index > 0; clicked => { root.manage-instance("trash", ""); } }
-                Button { text: @tr("Undo last trash"); enabled: !root.launch-busy && !root.auth-busy && root.can-restore; clicked => { root.manage-instance("restore", ""); } }
+                Button { text: root.trash-armed ? @tr("Confirm trash") : @tr("Move to trash"); enabled: !root.launch-busy && !root.auth-busy && !root.install-busy && root.instance-index > 0; clicked => { root.manage-instance("trash", ""); } }
+                Button { text: @tr("Undo last trash"); enabled: !root.launch-busy && !root.auth-busy && !root.install-busy && root.can-restore; clicked => { root.manage-instance("restore", ""); } }
             }
             HorizontalLayout {
                 spacing: 8px;
-                Button { text: @tr("Sign in with Microsoft"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.account-action("signin"); } }
+                Button { text: @tr("Sign in with Microsoft"); enabled: !root.launch-busy && !root.auth-busy && !root.install-busy; clicked => { root.account-action("signin"); } }
                 Button { text: @tr("Cancel sign-in"); enabled: root.auth-busy; clicked => { root.account-action("cancel"); } }
-                Button { text: @tr("Sign out locally"); enabled: !root.launch-busy && !root.auth-busy; clicked => { root.account-action("signout"); } }
+                Button { text: @tr("Sign out locally"); enabled: !root.launch-busy && !root.auth-busy && !root.install-busy; clicked => { root.account-action("signout"); } }
             }
             Text { text: root.account-status; wrap: word-wrap; color: root.dark-mode ? #b5bedf : #4a5280; font-size: 13px; }
-            Switch { text: @tr("Use Microsoft account for Play"); checked <=> root.use-microsoft; enabled: !root.launch-busy && !root.auth-busy; }
+            Switch { text: @tr("Use Microsoft account for Play"); checked <=> root.use-microsoft; enabled: !root.launch-busy && !root.auth-busy && !root.install-busy; }
             LineEdit {
                 text <=> root.local-name;
                 placeholder-text: @tr("Local name (1-16 letters, numbers or _)");
-                enabled: !root.launch-busy && !root.auth-busy;
+                enabled: !root.launch-busy && !root.auth-busy && !root.install-busy;
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: root.install-busy ? @tr("Installing...") : @tr("Install or repair game files");
+                    enabled: !root.install-busy && !root.launch-busy && !root.auth-busy;
+                    clicked => { root.install-game(); }
+                }
+            }
+            if root.install-busy : ProgressIndicator {
+                progress: root.install-progress;
             }
             Button {
                 text: root.launch-busy ? @tr("Working...") : root.use-microsoft ? @tr("Play with Microsoft") : @tr("Play offline");
-                enabled: !root.launch-busy && !root.auth-busy;
+                enabled: !root.launch-busy && !root.auth-busy && !root.install-busy;
                 clicked => { root.launch-offline(root.local-name); }
             }
             Text {
